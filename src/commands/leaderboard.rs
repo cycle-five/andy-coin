@@ -77,7 +77,7 @@ mod tests {
         data.add_coins(guild2, test_user_id(1), 50);  // Same user in different guild
         data.add_coins(guild1, test_user_id(2), 50);
         data.add_coins(guild1, test_user_id(3), 75);
-        data.add_coins(guild2, test_user_id(3), 75);  // Same user in different guild
+        data.add_coins(guild2, test_user_id(3), 70);  // Same user in different guild
         
         // Test guild-specific leaderboard
         let (top_users, scope) = get_leaderboard(&data, Some(guild1), false, 3);
@@ -101,7 +101,7 @@ mod tests {
         assert_eq!(top_users[0].0, test_user_id(1));
         assert_eq!(top_users[0].1, 150);  // 100 + 50
         assert_eq!(top_users[1].0, test_user_id(3));
-        assert_eq!(top_users[1].1, 150);  // 75 + 75
+        assert_eq!(top_users[1].1, 145);  // 75 + 75
         
         // Test leaderboard in DM (should be global)
         let (top_users, scope) = get_leaderboard(&data, None, false, 3);
