@@ -1,0 +1,19 @@
+[package]
+name = "andy-coin"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85.0"
+description = "A Discord bot that does one thing: tracks how many AndyCoins you have."
+license = "Unlicense"
+
+[dependencies]
+dashmap = "6.1.0"
+poise = { branch = "next", git = "https://github.com/serenity-rs/poise" }
+tokio = { version = "1.44.0", features = ["rt-multi-thread", "fs", "signal"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+
+# [dependencies.serenity]
+# default-features = false
+# features = ["builder", "client", "gateway", "model", "utils", "collector", "framework"]
+# version = "0.12.4"
