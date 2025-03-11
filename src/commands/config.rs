@@ -1,5 +1,5 @@
 use poise::serenity_prelude as serenity;
-use crate::{Context, Error};
+use crate::{Context, Error, logging};
 
 /// Set the giver role for a server
 #[poise::command(slash_command, guild_only)]
@@ -28,14 +28,17 @@ pub async fn role(
     }
 
     let response;
+    let role_name_for_log;
     
     if let Some(r) = role {
         // Set the giver role
         let role_name = r.name.clone();
+        role_name_for_log = role_name.clone();
         ctx.data().set_giver_role(guild_id, Some(r.id));
         response = format!("Set {} as the giver role. Users with this role can now give AndyCoins.", role_name);
     } else {
         // Clear the giver role
+        role_name_for_log = "None".to_string();
         ctx.data().set_giver_role(guild_id, None);
         response = "Cleared the giver role. Only the server owner can give AndyCoins now.".to_string();
     }
@@ -44,6 +47,15 @@ pub async fn role(
     ctx.data().save().await?;
     
     ctx.say(response).await?;
+    
+    // Log successful command execution
+    logging::log_command(
+        "role",
+        Some(guild_id.get()),
+        ctx.author().id.get(),
+        &format!("role: {}", role_name_for_log),
+        true,
+    );
     
     Ok(())
 }
@@ -61,6 +73,16 @@ pub async fn flip(
     // If no guess is provided, just show the result
     if guess.is_none() && bet.is_none() {
         ctx.say(format!("The coin landed on **{}**!", result_str)).await?;
+        
+        // Log simple flip
+        logging::log_command(
+            "flip",
+            ctx.guild_id().map(|id| id.get()),
+            ctx.author().id.get(),
+            &format!("result: {}", result_str),
+            true,
+        );
+        
         return Ok(());
     }
     
@@ -109,6 +131,20 @@ pub async fn flip(
             
             // Save the updated balances
             ctx.data().save().await?;
+            
+            // Log the bet result
+            let outcome = if guess_result == result { "win" } else { "lose" };
+            logging::log_command(
+                "flip_bet",
+                Some(guild_id.get()),
+                ctx.author().id.get(),
+                &format!("guess: {}, result: {}, outcome: {}", 
+                    if guess_result { "heads" } else { "tails" }, 
+                    if result { "heads" } else { "tails" },
+                    outcome
+                ),
+                true,
+            );
         } else {
             // Regular guess without betting
             if guess_result == result {
@@ -116,6 +152,20 @@ pub async fn flip(
             } else {
                 ctx.say(format!("The coin landed on **{}**! You guessed wrong.", result_str)).await?;
             }
+            
+            // Log the guess result
+            let outcome = if guess_result == result { "correct" } else { "wrong" };
+            logging::log_command(
+                "flip_guess",
+                ctx.guild_id().map(|id| id.get()),
+                ctx.author().id.get(),
+                &format!("guess: {}, result: {}, outcome: {}", 
+                    if guess_result { "heads" } else { "tails" }, 
+                    if result { "heads" } else { "tails" },
+                    outcome
+                ),
+                true,
+            );
         }
         
         return Ok(());
@@ -125,11 +175,21 @@ pub async fn flip(
 }
 
 /// Command to configure the bot. Uses a subcommand structure via poise.
-#[poise::command(slash_command, subcommands("role"))]
+#[poise::command(slash_command, subcommands("role"), owners_only)]
 pub async fn config(
     ctx: Context<'_>,
 ) -> Result<(), Error> {
     ctx.say("Use one of the subcommands: role").await?;
+    
+    // Log command execution
+    logging::log_command(
+        "config",
+        ctx.guild_id().map(|id| id.get()),
+        ctx.author().id.get(),
+        "help message displayed",
+        true,
+    );
+    
     Ok(())
 }
 

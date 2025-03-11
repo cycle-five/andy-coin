@@ -1,5 +1,5 @@
 use poise::serenity_prelude as serenity;
-use crate::{Context, Error, Data};
+use crate::{Context, Error, Data, logging};
 
 // Core business logic for checking balance
 pub fn get_balance(
@@ -26,6 +26,10 @@ pub async fn balance(
     #[description = "User to check balance for (defaults to yourself)"] user: Option<serenity::User>,
     #[description = "Show total balance across all servers (default: current server only)"] global: Option<bool>,
 ) -> Result<(), Error> {
+    // Format arguments for logging
+    let user_arg = user.as_ref().map_or("self".to_string(), |u| u.tag());
+    let global_arg = global.unwrap_or(false).to_string();
+    let args = format!("user: {}, global: {}", user_arg, global_arg);
     let target_user = user.as_ref().unwrap_or_else(|| ctx.author());
     let is_global = global.unwrap_or(false);
     let guild_id = ctx.guild_id();
@@ -46,6 +50,15 @@ pub async fn balance(
     };
     
     ctx.say(response).await?;
+    
+    // Log successful command execution
+    logging::log_command(
+        "balance",
+        ctx.guild_id().map(|id| id.get()),
+        ctx.author().id.get(),
+        &args,
+        true,
+    );
     
     Ok(())
 }

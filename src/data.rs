@@ -91,7 +91,7 @@ impl Data {
             .map(|guild_entry| guild_entry.value().len())
             .sum();
         
-        println!("Loaded {} user balances and {} guild configs", 
+        tracing::info!("Loaded {} user balances and {} guild configs", 
                  total_balances, self.guild_configs.len());
     }
     
@@ -100,7 +100,7 @@ impl Data {
         let data = Self::new();
         
         if !Path::new(DATA_FILE).exists() {
-            println!("No data file found. Starting with empty data.");
+            tracing::info!("No data file found. Starting with empty data.");
             return data;
         }
         
@@ -108,7 +108,7 @@ impl Data {
         let yaml_str = match tokio::fs::read_to_string(DATA_FILE).await {
             Ok(content) => content,
             Err(e) => {
-                eprintln!("Error reading data file: {}", e);
+                tracing::error!("Error reading data file: {}", e);
                 return data;
             }
         };
@@ -117,9 +117,9 @@ impl Data {
         match Self::parse_yaml(&yaml_str) {
             Ok((balances, configs)) => {
                 data.import_data(balances, configs);
-                println!("Successfully loaded data from {}", DATA_FILE);
+                tracing::info!("Successfully loaded data from {}", DATA_FILE);
             }
-            Err(e) => eprintln!("Error deserializing data: {}", e),
+            Err(e) => tracing::error!("Error deserializing data: {}", e),
         }
         
         data
@@ -179,7 +179,7 @@ impl Data {
         let yaml_str = Self::to_yaml(&balances, &configs)?;
         
         tokio::fs::write(DATA_FILE, yaml_str).await?;
-        println!("Saved {} user balances and {} guild configs to {}", 
+        tracing::info!("Saved {} user balances and {} guild configs to {}", 
                  balances.len(), configs.len(), DATA_FILE);
         
         Ok(())
@@ -208,11 +208,24 @@ impl Data {
             .entry(guild_id)
             .or_insert_with(dashmap::DashMap::new);
         
+        // Get the previous balance
+        let previous_balance = guild_map.get(&user_id).map(|bal| *bal).unwrap_or(0);
+        
         // Update the user's balance
         let new_balance = *guild_map
             .entry(user_id)
             .and_modify(|bal| *bal += amount)
             .or_insert(amount);
+        
+        // Log the balance change
+        crate::logging::log_balance_change(
+            guild_id.get(),
+            user_id.get(),
+            previous_balance,
+            new_balance,
+            "add_coins",
+            None,
+        );
         
         new_balance
     }
@@ -223,6 +236,9 @@ impl Data {
         let guild_map = self.guild_balances
             .entry(guild_id)
             .or_insert_with(dashmap::DashMap::new);
+        
+        // Get the previous balance
+        let previous_balance = guild_map.get(&user_id).map(|bal| *bal).unwrap_or(0);
         
         // Update the user's balance
         let new_balance = guild_map
@@ -236,7 +252,19 @@ impl Data {
             })
             .or_insert(0);
 
-        *new_balance
+        let new_balance_value = *new_balance;
+        
+        // Log the balance change
+        crate::logging::log_balance_change(
+            guild_id.get(),
+            user_id.get(),
+            previous_balance,
+            new_balance_value,
+            "remove_coins",
+            None,
+        );
+        
+        new_balance_value
     }
 
     // Get top users by balance in a specific guild

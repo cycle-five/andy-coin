@@ -1,5 +1,5 @@
 use poise::serenity_prelude as serenity;
-use crate::{Context, Error, Data};
+use crate::{Context, Error, Data, logging};
 
 // Core business logic for giving coins
 pub fn give_coins(
@@ -7,8 +7,32 @@ pub fn give_coins(
     guild_id: serenity::GuildId,
     user_id: serenity::UserId,
     amount: u32,
+    initiator_id: Option<serenity::UserId>,
 ) -> u32 {
-    data.add_coins(guild_id, user_id, amount)
+    // Get the previous balance
+    let previous_balance = data.get_guild_balance(guild_id, user_id);
+    
+    // Add coins
+    let guild_map = data.guild_balances
+        .entry(guild_id)
+        .or_insert_with(dashmap::DashMap::new);
+    
+    let new_balance = *guild_map
+        .entry(user_id)
+        .and_modify(|bal| *bal += amount)
+        .or_insert(amount);
+    
+    // Log the balance change
+    logging::log_balance_change(
+        guild_id.get(),
+        user_id.get(),
+        previous_balance,
+        new_balance,
+        "give_command",
+        initiator_id.map(|id| id.get()),
+    );
+    
+    new_balance
 }
 
 /// Give AndyCoins to a user (server owner only)
@@ -18,6 +42,8 @@ pub async fn give(
     #[description = "Amount of AndyCoins to give"] amount: u32,
     #[description = "User to give the AndyCoins to"] user: serenity::User,
 ) -> Result<(), Error> {
+    // Log command execution
+    let args = format!("amount: {}, user: {}", amount, user.tag());
     let guild_id = match ctx.guild_id() {
         Some(id) => id,
         None => {
@@ -42,7 +68,7 @@ pub async fn give(
     }
 
     // Call the testable business logic function
-    let new_balance = give_coins(ctx.data(), guild_id, user.id, amount);
+    let new_balance = give_coins(ctx.data(), guild_id, user.id, amount, Some(ctx.author().id));
     
     // Save the updated balances
     ctx.data().save().await?;
@@ -50,6 +76,15 @@ pub async fn give(
     let response = format!("Gave {} AndyCoins to {}. Their new balance in this server is {} AndyCoins.", 
                           amount, user.tag(), new_balance);
     ctx.say(response).await?;
+    
+    // Log successful command execution
+    logging::log_command(
+        "give",
+        Some(guild_id.get()),
+        ctx.author().id.get(),
+        &args,
+        true,
+    );
     
     Ok(())
 }
@@ -73,13 +108,14 @@ mod tests {
         let data = Data::new();
         let guild_id = test_guild_id(1);
         let user_id = test_user_id(123);
+        let initiator_id = test_user_id(456);
         
         // Test giving coins
-        let new_balance = give_coins(&data, guild_id, user_id, 50);
+        let new_balance = give_coins(&data, guild_id, user_id, 50, Some(initiator_id));
         assert_eq!(new_balance, 50);
         
         // Test giving more coins
-        let new_balance = give_coins(&data, guild_id, user_id, 25);
+        let new_balance = give_coins(&data, guild_id, user_id, 25, Some(initiator_id));
         assert_eq!(new_balance, 75);
     }
 }

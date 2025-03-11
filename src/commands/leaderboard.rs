@@ -1,5 +1,5 @@
 use poise::serenity_prelude as serenity;
-use crate::{Context, Error, Data};
+use crate::{Context, Error, Data, logging};
 
 // Core business logic for getting leaderboard
 pub fn get_leaderboard(
@@ -22,6 +22,10 @@ pub async fn leaderboard(
     #[description = "Number of users to show (default: 10)"] limit: Option<usize>,
     #[description = "Show global leaderboard across all servers (default: current server only)"] global: Option<bool>,
 ) -> Result<(), Error> {
+    // Format arguments for logging
+    let limit_arg = limit.unwrap_or(10).to_string();
+    let global_arg = global.unwrap_or(false).to_string();
+    let args = format!("limit: {}, global: {}", limit_arg, global_arg);
     let limit = limit.unwrap_or(10).min(25); // Cap at 25 to avoid too long messages
     let is_global = global.unwrap_or(false);
     let guild_id = ctx.guild_id();
@@ -48,6 +52,15 @@ pub async fn leaderboard(
     }
     
     ctx.say(response).await?;
+    
+    // Log successful command execution
+    logging::log_command(
+        "leaderboard",
+        ctx.guild_id().map(|id| id.get()),
+        ctx.author().id.get(),
+        &args,
+        true,
+    );
     
     Ok(())
 }
