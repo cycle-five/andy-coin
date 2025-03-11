@@ -11,6 +11,7 @@ pub fn get_leaderboard(
     if is_global || guild_id.is_none() {
         (data.get_global_top_users(limit), "Global")
     } else {
+        #[allow(clippy::unnecessary_unwrap)]
         (data.get_guild_top_users(guild_id.unwrap(), limit), "Server")
     }
 }

@@ -10,12 +10,10 @@ pub fn get_balance(
 ) -> u32 {
     if is_global {
         data.get_total_balance(user_id)
+    } else if let Some(guild_id) = opt_guild_id {
+        data.get_guild_balance(guild_id, user_id)
     } else {
-        if let Some(guild_id) = opt_guild_id {
-            data.get_guild_balance(guild_id, user_id)
-        } else {
-            data.get_total_balance(user_id)
-        }
+        data.get_total_balance(user_id)
     }
 }
 

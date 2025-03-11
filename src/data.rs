@@ -349,8 +349,8 @@ impl Data {
 
     // Flip a coin and return the result
     pub fn flip_coin(&self) -> bool {
-        let mut rng = rand::thread_rng();
-        rng.gen_bool(0.5)
+        let mut rng = rand::rng();
+        rng.random_bool(0.5)
     }
 
     // Reset all data
