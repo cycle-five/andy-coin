@@ -1,6 +1,7 @@
 use poise::serenity_prelude as serenity;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use rand::Rng;
 
 use crate::DATA_FILE;
 
@@ -11,26 +12,60 @@ pub struct UserBalance {
     pub balance: u32,
 }
 
+#[derive(Default, Serialize, Deserialize)]
+pub struct GuildConfig {
+    pub guild_id: u64,
+    pub giver_role_id: Option<u64>,
+}
+
 pub struct Data {
     // Map of guild_id -> (user_id -> balance)
     pub guild_balances: dashmap::DashMap<serenity::GuildId, dashmap::DashMap<serenity::UserId, u32>>,
+    // Map of guild_id -> guild configuration
+    pub guild_configs: dashmap::DashMap<serenity::GuildId, GuildConfig>,
+    // Cache from the bot's context
+    pub cache: serenity::Cache,
 } 
+
+impl Default for Data {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Data {
     // Create a new Data instance
     pub fn new() -> Self {
         Self {
             guild_balances: dashmap::DashMap::new(),
+            guild_configs: dashmap::DashMap::new(),
+            cache: serenity::Cache::default(),
         }
     }
 
-    // Parse YAML string into user balances
-    pub fn parse_yaml(yaml_str: &str) -> Result<Vec<UserBalance>, serde_yaml::Error> {
-        serde_yaml::from_str::<Vec<UserBalance>>(yaml_str)
+    // Parse YAML string into user balances and guild configs
+    pub fn parse_yaml(yaml_str: &str) -> Result<(Vec<UserBalance>, Vec<GuildConfig>), serde_yaml::Error> {
+        let data: serde_yaml::Value = serde_yaml::from_str(yaml_str)?;
+        
+        let balances = if let Some(balances_value) = data.get("balances") {
+            serde_yaml::from_value(balances_value.clone())?
+        } else {
+            // For backward compatibility with old format
+            let old_format: Result<Vec<UserBalance>, _> = serde_yaml::from_str(yaml_str);
+            old_format.unwrap_or_default()
+        };
+        
+        let configs = if let Some(configs_value) = data.get("configs") {
+            serde_yaml::from_value(configs_value.clone())?
+        } else {
+            Vec::new()
+        };
+        
+        Ok((balances, configs))
     }
     
-    // Import user balances into the data structure
-    pub fn import_balances(&self, balances: Vec<UserBalance>) {
+    // Import user balances and guild configs into the data structure
+    pub fn import_data(&self, balances: Vec<UserBalance>, configs: Vec<GuildConfig>) {
         for user_balance in balances {
             let guild_id = serenity::GuildId::new(user_balance.guild_id);
             let user_id = serenity::UserId::new(user_balance.user_id);
@@ -44,22 +79,28 @@ impl Data {
             guild_map.insert(user_id, user_balance.balance);
         }
         
+        // Import guild configs
+        for guild_config in configs {
+            let guild_id = serenity::GuildId::new(guild_config.guild_id);
+            self.guild_configs.insert(guild_id, guild_config);
+        }
+        
         // Count total balances across all guilds
         let total_balances: usize = self.guild_balances
             .iter()
             .map(|guild_entry| guild_entry.value().len())
             .sum();
         
-        println!("Loaded {} user balances across {} guilds", 
-                 total_balances, self.guild_balances.len());
+        println!("Loaded {} user balances and {} guild configs", 
+                 total_balances, self.guild_configs.len());
     }
     
-    // Load balances from YAML file
+    // Load data from YAML file
     pub async fn load() -> Self {
         let data = Self::new();
         
         if !Path::new(DATA_FILE).exists() {
-            println!("No data file found. Starting with empty balances.");
+            println!("No data file found. Starting with empty data.");
             return data;
         }
         
@@ -72,20 +113,20 @@ impl Data {
             }
         };
         
-        // Parse YAML and import balances
+        // Parse YAML and import data
         match Self::parse_yaml(&yaml_str) {
-            Ok(balances) => {
-                data.import_balances(balances);
-                println!("Successfully loaded balances from {}", DATA_FILE);
+            Ok((balances, configs)) => {
+                data.import_data(balances, configs);
+                println!("Successfully loaded data from {}", DATA_FILE);
             }
-            Err(e) => eprintln!("Error deserializing balances: {}", e),
+            Err(e) => eprintln!("Error deserializing data: {}", e),
         }
         
         data
     }
 
-    // Export balances to a serializable format
-    pub fn export_balances(&self) -> Vec<UserBalance> {
+    // Export balances and configs to a serializable format
+    pub fn export_data(&self) -> (Vec<UserBalance>, Vec<GuildConfig>) {
         let mut balances = Vec::new();
         
         for guild_entry in self.guild_balances.iter() {
@@ -100,21 +141,46 @@ impl Data {
             }
         }
         
-        balances
+        let mut configs = Vec::new();
+        
+        for config_entry in self.guild_configs.iter() {
+            let guild_id = config_entry.key().get();
+            let config = config_entry.value();
+            
+            configs.push(GuildConfig {
+                guild_id,
+                giver_role_id: config.giver_role_id,
+            });
+        }
+        
+        (balances, configs)
     }
     
-    // Convert balances to YAML string
-    pub fn to_yaml(balances: &[UserBalance]) -> Result<String, serde_yaml::Error> {
-        serde_yaml::to_string(balances)
+    // Convert data to YAML string
+    pub fn to_yaml(balances: &[UserBalance], configs: &[GuildConfig]) -> Result<String, serde_yaml::Error> {
+        let mut data = serde_yaml::Mapping::new();
+        
+        data.insert(
+            serde_yaml::Value::String("balances".to_string()),
+            serde_yaml::to_value(balances)?,
+        );
+        
+        data.insert(
+            serde_yaml::Value::String("configs".to_string()),
+            serde_yaml::to_value(configs)?,
+        );
+        
+        serde_yaml::to_string(&serde_yaml::Value::Mapping(data))
     }
     
-    // Save balances to YAML file
+    // Save data to YAML file
     pub async fn save(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let balances = self.export_balances();
-        let yaml_str = Self::to_yaml(&balances)?;
+        let (balances, configs) = self.export_data();
+        let yaml_str = Self::to_yaml(&balances, &configs)?;
         
         tokio::fs::write(DATA_FILE, yaml_str).await?;
-        println!("Saved {} user balances to {}", balances.len(), DATA_FILE);
+        println!("Saved {} user balances and {} guild configs to {}", 
+                 balances.len(), configs.len(), DATA_FILE);
         
         Ok(())
     }
@@ -143,13 +209,34 @@ impl Data {
             .or_insert_with(dashmap::DashMap::new);
         
         // Update the user's balance
-        let new_balance = guild_map
+        let new_balance = *guild_map
             .entry(user_id)
             .and_modify(|bal| *bal += amount)
-            .or_insert(amount)
-            .clone();
+            .or_insert(amount);
         
         new_balance
+    }
+
+    // Remove coins from a user's balance in a specific guild
+    pub fn remove_coins(&self, guild_id: serenity::GuildId, user_id: serenity::UserId, amount: u32) -> u32 {
+        // Get or create the guild's balance map
+        let guild_map = self.guild_balances
+            .entry(guild_id)
+            .or_insert_with(dashmap::DashMap::new);
+        
+        // Update the user's balance
+        let new_balance = guild_map
+            .entry(user_id)
+            .and_modify(|bal| {
+                if *bal >= amount {
+                    *bal -= amount;
+                } else {
+                    *bal = 0;
+                }
+            })
+            .or_insert(0);
+
+        *new_balance
     }
 
     // Get top users by balance in a specific guild
@@ -194,6 +281,55 @@ impl Data {
         
         users
     }
+
+    // Set the giver role for a guild
+    pub fn set_giver_role(&self, guild_id: serenity::GuildId, role_id: Option<serenity::RoleId>) {
+        let role_id_u64 = role_id.map(|r| r.get());
+        
+        self.guild_configs
+            .entry(guild_id)
+            .and_modify(|config| config.giver_role_id = role_id_u64)
+            .or_insert_with(|| GuildConfig {
+                guild_id: guild_id.get(),
+                giver_role_id: role_id_u64,
+            });
+    }
+
+    // Get the giver role for a guild
+    pub fn get_giver_role(&self, guild_id: serenity::GuildId) -> Option<serenity::RoleId> {
+        self.guild_configs
+            .get(&guild_id)
+            .and_then(|config| config.giver_role_id.map(serenity::RoleId::new))
+    }
+
+    // Check if a user has the giver role
+    pub fn has_giver_role(&self, guild_id: serenity::GuildId, member: &serenity::Member) -> bool {
+        // Server owner always has permission
+        // Get guild owner ID.
+        if member.user.id == member.guild_id.to_guild_cached(&self.cache).map(|g| g.owner_id).unwrap_or_default() {
+            return true;
+        }
+        
+        // Check if the user has the giver role
+        if let Some(giver_role_id) = self.get_giver_role(guild_id) {
+            return member.roles.contains(&giver_role_id);
+        }
+        
+        // If no giver role is set, only the server owner can give coins
+        false
+    }
+
+    // Flip a coin and return the result
+    pub fn flip_coin(&self) -> bool {
+        let mut rng = rand::thread_rng();
+        rng.gen_bool(0.5)
+    }
+
+    // Reset all data
+    pub fn reset(&self) {
+        self.guild_balances.clear();
+        self.guild_configs.clear();
+    }
 }
 
 #[cfg(test)]
@@ -208,6 +344,11 @@ mod tests {
     // Helper function to create a test guild ID
     fn test_guild_id(id: u64) -> serenity::GuildId {
         serenity::GuildId::new(id)
+    }
+
+    // Helper function to create a test role ID
+    fn test_role_id(id: u64) -> serenity::RoleId {
+        serenity::RoleId::new(id)
     }
 
     #[test]
@@ -327,23 +468,74 @@ mod tests {
     }
 
     #[test]
+    fn test_set_get_giver_role() {
+        let data = Data::new();
+        let guild_id = test_guild_id(1);
+        let role_id = test_role_id(123);
+        
+        // Initially, no giver role is set
+        assert_eq!(data.get_giver_role(guild_id), None);
+        
+        // Set a giver role
+        data.set_giver_role(guild_id, Some(role_id));
+        
+        // Check that the giver role is set
+        assert_eq!(data.get_giver_role(guild_id), Some(role_id));
+        
+        // Clear the giver role
+        data.set_giver_role(guild_id, None);
+        
+        // Check that the giver role is cleared
+        assert_eq!(data.get_giver_role(guild_id), None);
+    }
+
+    #[test]
+    fn test_flip_coin() {
+        let data = Data::new();
+        
+        // Flip the coin multiple times to ensure it returns both true and false
+        let mut heads_count = 0;
+        let mut tails_count = 0;
+        
+        for _ in 0..100 {
+            if data.flip_coin() {
+                heads_count += 1;
+            } else {
+                tails_count += 1;
+            }
+        }
+        
+        // Both heads and tails should occur
+        assert!(heads_count > 0);
+        assert!(tails_count > 0);
+    }
+
+    #[test]
     fn test_parse_yaml() {
         let yaml_str = r#"
-- guild_id: 1
-  user_id: 123
-  balance: 100
-- guild_id: 1
-  user_id: 456
-  balance: 200
-- guild_id: 2
-  user_id: 123
-  balance: 50
+balances:
+  - guild_id: 1
+    user_id: 123
+    balance: 100
+  - guild_id: 1
+    user_id: 456
+    balance: 200
+  - guild_id: 2
+    user_id: 123
+    balance: 50
+configs:
+  - guild_id: 1
+    giver_role_id: 789
+  - guild_id: 2
+    giver_role_id: null
 "#;
         
         let result = Data::parse_yaml(yaml_str);
         assert!(result.is_ok());
         
-        let balances = result.unwrap();
+        let (balances, configs) = result.unwrap();
+        
+        // Check balances
         assert_eq!(balances.len(), 3);
         assert_eq!(balances[0].guild_id, 1);
         assert_eq!(balances[0].user_id, 123);
@@ -354,10 +546,17 @@ mod tests {
         assert_eq!(balances[2].guild_id, 2);
         assert_eq!(balances[2].user_id, 123);
         assert_eq!(balances[2].balance, 50);
+        
+        // Check configs
+        assert_eq!(configs.len(), 2);
+        assert_eq!(configs[0].guild_id, 1);
+        assert_eq!(configs[0].giver_role_id, Some(789));
+        assert_eq!(configs[1].guild_id, 2);
+        assert_eq!(configs[1].giver_role_id, None);
     }
 
     #[test]
-    fn test_import_balances() {
+    fn test_import_data() {
         let data = Data::new();
         let balances = vec![
             UserBalance { guild_id: 1, user_id: 123, balance: 100 },
@@ -365,7 +564,12 @@ mod tests {
             UserBalance { guild_id: 2, user_id: 123, balance: 50 },
         ];
         
-        data.import_balances(balances);
+        let configs = vec![
+            GuildConfig { guild_id: 1, giver_role_id: Some(789) },
+            GuildConfig { guild_id: 2, giver_role_id: None },
+        ];
+        
+        data.import_data(balances, configs);
         
         // Check guild-specific balances
         assert_eq!(data.get_guild_balance(test_guild_id(1), test_user_id(123)), 100);
@@ -376,10 +580,14 @@ mod tests {
         // Check total balances
         assert_eq!(data.get_total_balance(test_user_id(123)), 150); // 100 + 50
         assert_eq!(data.get_total_balance(test_user_id(456)), 200);
+        
+        // Check guild configs
+        assert_eq!(data.get_giver_role(test_guild_id(1)), Some(test_role_id(789)));
+        assert_eq!(data.get_giver_role(test_guild_id(2)), None);
     }
     
     #[test]
-    fn test_export_balances() {
+    fn test_export_data() {
         let data = Data::new();
         
         // Add some balances across different guilds
@@ -387,15 +595,21 @@ mod tests {
         data.add_coins(test_guild_id(1), test_user_id(456), 200);
         data.add_coins(test_guild_id(2), test_user_id(123), 50);
         
-        // Export balances
-        let mut balances = data.export_balances();
+        // Set some guild configs
+        data.set_giver_role(test_guild_id(1), Some(test_role_id(789)));
+        data.set_giver_role(test_guild_id(2), None);
+        
+        // Export data
+        let (mut balances, mut configs) = data.export_data();
         
         // Sort by guild_id and user_id to ensure consistent order for testing
         balances.sort_by(|a, b| {
             a.guild_id.cmp(&b.guild_id).then(a.user_id.cmp(&b.user_id))
         });
         
-        // Check the exported data
+        configs.sort_by(|a, b| a.guild_id.cmp(&b.guild_id));
+        
+        // Check the exported balances
         assert_eq!(balances.len(), 3);
         assert_eq!(balances[0].guild_id, 1);
         assert_eq!(balances[0].user_id, 123);
@@ -406,6 +620,13 @@ mod tests {
         assert_eq!(balances[2].guild_id, 2);
         assert_eq!(balances[2].user_id, 123);
         assert_eq!(balances[2].balance, 50);
+        
+        // Check the exported configs
+        assert_eq!(configs.len(), 2);
+        assert_eq!(configs[0].guild_id, 1);
+        assert_eq!(configs[0].giver_role_id, Some(789));
+        assert_eq!(configs[1].guild_id, 2);
+        assert_eq!(configs[1].giver_role_id, None);
     }
     
     #[test]
@@ -416,7 +637,12 @@ mod tests {
             UserBalance { guild_id: 2, user_id: 123, balance: 50 },
         ];
         
-        let yaml_result = Data::to_yaml(&balances);
+        let configs = vec![
+            GuildConfig { guild_id: 1, giver_role_id: Some(789) },
+            GuildConfig { guild_id: 2, giver_role_id: None },
+        ];
+        
+        let yaml_result = Data::to_yaml(&balances, &configs);
         assert!(yaml_result.is_ok());
         
         let yaml_str = yaml_result.unwrap();
@@ -425,7 +651,9 @@ mod tests {
         let parsed_result = Data::parse_yaml(&yaml_str);
         assert!(parsed_result.is_ok());
         
-        let parsed_balances = parsed_result.unwrap();
+        let (parsed_balances, parsed_configs) = parsed_result.unwrap();
+        
+        // Check balances
         assert_eq!(parsed_balances.len(), 3);
         assert_eq!(parsed_balances[0].guild_id, 1);
         assert_eq!(parsed_balances[0].user_id, 123);
@@ -436,5 +664,12 @@ mod tests {
         assert_eq!(parsed_balances[2].guild_id, 2);
         assert_eq!(parsed_balances[2].user_id, 123);
         assert_eq!(parsed_balances[2].balance, 50);
+        
+        // Check configs
+        assert_eq!(parsed_configs.len(), 2);
+        assert_eq!(parsed_configs[0].guild_id, 1);
+        assert_eq!(parsed_configs[0].giver_role_id, Some(789));
+        assert_eq!(parsed_configs[1].guild_id, 2);
+        assert_eq!(parsed_configs[1].giver_role_id, None);
     }
 }

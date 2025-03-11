@@ -5,13 +5,17 @@ use crate::{Context, Error, Data};
 pub fn get_balance(
     data: &Data,
     user_id: serenity::UserId,
-    guild_id: Option<serenity::GuildId>,
+    opt_guild_id: Option<serenity::GuildId>,
     is_global: bool,
 ) -> u32 {
-    if is_global || guild_id.is_none() {
+    if is_global {
         data.get_total_balance(user_id)
     } else {
-        data.get_guild_balance(guild_id.unwrap(), user_id)
+        if let Some(guild_id) = opt_guild_id {
+            data.get_guild_balance(guild_id, user_id)
+        } else {
+            data.get_total_balance(user_id)
+        }
     }
 }
 

@@ -12,6 +12,7 @@ poise = { branch = "next", git = "https://github.com/serenity-rs/poise" }
 tokio = { version = "1.44.0", features = ["rt-multi-thread", "fs", "signal"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
+rand = "0.8.5"
 
 # [dependencies.serenity]
 # default-features = false

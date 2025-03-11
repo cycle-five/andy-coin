@@ -26,15 +26,18 @@ pub async fn give(
         }
     };
     
-    // Check if the command user is the server owner
-    let is_owner = if let Some(guild) = ctx.guild() {
-        guild.owner_id == ctx.author().id
-    } else {
-        false
+    // Get the member who is giving coins
+    let member = match ctx.author_member().await {
+        Some(member) => member,
+        None => {
+            ctx.say("Failed to get your member information.").await?;
+            return Ok(());
+        }
     };
-
-    if !is_owner {
-        ctx.say("Only the server owner can give AndyCoins!").await?;
+    
+    // Check if the user has permission to give coins
+    if !ctx.data().has_giver_role(guild_id, &member) {
+        ctx.say("You don't have permission to give AndyCoins! Only the server owner or users with the giver role can do this.").await?;
         return Ok(());
     }
 

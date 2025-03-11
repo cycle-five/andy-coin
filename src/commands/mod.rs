@@ -1,19 +1,24 @@
-pub mod give;
 pub mod balance;
+pub mod config;
 pub mod leaderboard;
+pub mod give;
 
-pub use give::give;
 pub use balance::balance;
+pub use config::config;
+pub use config::flip;
+pub use give::give;
 pub use leaderboard::leaderboard;
 
 use crate::{Data, Error};
 
 // Helper function to get all commands
-pub fn all_commands() -> Vec<poise::Command<Data, Error>> {
+pub fn _all_commands() -> Vec<poise::Command<Data, Error>> {
     vec![
+        config(),
         give(),
         balance(),
         leaderboard(),
+        flip(),
     ]
 }
 
@@ -21,10 +26,9 @@ pub fn all_commands() -> Vec<poise::Command<Data, Error>> {
 mod tests {
     use super::*;
 
-    // Helper function to create a test user ID
     #[test]
     fn test_all_commands() {
-        let commands = all_commands();
-        assert_eq!(commands.len(), 3);
+        let commands = _all_commands();
+        assert_eq!(commands.len(), 6);
     }
 }

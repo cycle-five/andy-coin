@@ -47,6 +47,7 @@ version = "0.1.0"
 dependencies = [
  "dashmap 6.1.0",
  "poise",
+ "rand",
  "serde",
  "serde_yaml",
  "tokio",

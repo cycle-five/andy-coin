@@ -21,6 +21,8 @@ async fn main() {
                 commands::give::give(),
                 commands::balance::balance(),
                 commands::leaderboard::leaderboard(),
+                commands::config::config(),
+                commands::config::flip(),
             ],
             ..Default::default()
         })
