@@ -35,7 +35,7 @@ pub async fn leaderboard(
     }
     
     let mut response = format!("# {} AndyCoin Leaderboard\n", scope);
-    
+
     for (idx, (user_id, balance)) in top_users.iter().enumerate() {
         let rank = idx + 1;
         // Try to fetch the user info
