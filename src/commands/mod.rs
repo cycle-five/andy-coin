@@ -29,6 +29,6 @@ mod tests {
     #[test]
     fn test_all_commands() {
         let commands = _all_commands();
-        assert_eq!(commands.len(), 6);
+        assert_eq!(commands.len(), 5);
     }
 }

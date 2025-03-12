@@ -517,6 +517,40 @@ mod tests {
         assert_eq!(data.get_giver_role(guild_id), None);
     }
 
+    // FIXME: This needs a mock for serenity::Member I think.
+    // #[test]
+    // fn test_has_giver_role() {
+    //     let data = Data::new();
+    //     let guild_id = test_guild_id(1);
+    //     let role_id = test_role_id(123);
+        
+    //     // Initially, no giver role is set
+    //     assert!(!data.has_giver_role(guild_id, &serenity::Member::default()));
+        
+    //     // Set a giver role
+    //     data.set_giver_role(guild_id, Some(role_id));
+        
+    //     // Check that a user with the role has permission
+    //     let member = serenity::MemberBuilder::new()
+    //         .user(serenity::User::default())
+    //         .roles(vec![role_id])
+    //         .guild_id(guild_id)
+    //         .build();
+        
+    //     assert!(data.has_giver_role(guild_id, &member));
+        
+    //     // Check that a user without the role doesn't have permission
+    //     let asdf = Member::default().;
+    //     let member = serenity::Member {
+    //         user: serenity::User::default(),
+    //         roles: vec![],
+    //         guild_id,
+    //         ..Default::default()
+    //     };
+        
+    //     assert!(!data.has_giver_role(guild_id, &member));
+    // }
+
     #[test]
     fn test_flip_coin() {
         let data = Data::new();
