@@ -203,7 +203,7 @@ fn balance_summary() -> io::Result<()> {
             // Update guild-user map
             let guild_map = guild_user_changes
                 .entry(guild_id)
-                .or_insert_with(HashMap::new);
+                .or_default();
             *guild_map.entry(user_id.clone()).or_insert(0) += change;
 
             // Update user totals
@@ -255,6 +255,7 @@ fn parse_command_logs() -> io::Result<Vec<LogEntryType>> {
 
     // Find all command log files
     if let Ok(files) = fs::read_dir(log_dir) {
+        #[allow(clippy::manual_flatten)]
         for file_result in files {
             if let Ok(file) = file_result {
                 let file_name = file.file_name().to_string_lossy().to_string();
@@ -269,6 +270,7 @@ fn parse_command_logs() -> io::Result<Vec<LogEntryType>> {
                     };
                     let reader = BufReader::new(file);
 
+                    #[allow(clippy::manual_flatten)]
                     for line in reader.lines() {
                         if let Ok(line_content) = line {
                             if let Ok(json) = serde_json::from_str::<Value>(&line_content) {
@@ -339,6 +341,7 @@ fn parse_balance_logs() -> io::Result<Vec<LogEntryType>> {
                 };
                 let reader = BufReader::new(file);
 
+                #[allow(clippy::manual_flatten)]
                 for line in reader.lines() {
                     if let Ok(line_content) = line {
                         if let Ok(json) = serde_json::from_str::<Value>(&line_content) {
