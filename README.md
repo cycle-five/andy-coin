@@ -1,4 +1,8 @@
-# AndyCoin Bot Logging and Auditing
+# AndyCoin Bot
+
+AndyCoin Bot does one thing, let you give people in your server AndyCoin. It also does its best to cause chaos, indirectly.
+
+## AndyCoin Bot Logging and Auditing
 
 This document describes the logging and auditing system implemented for the AndyCoin Discord bot.
 

@@ -339,37 +339,40 @@ fn parse_balance_logs() -> io::Result<Vec<LogEntryType>> {
                 };
                 let reader = BufReader::new(file);
 
-                for line_content in reader.lines().flatten() {
-                    if let Ok(json) = serde_json::from_str::<Value>(&line_content) {
-                        if let Some(timestamp) = json.get("timestamp").and_then(|v| v.as_str()) {
-                            if let Some(fields) = json.get("fields") {
-                                if let (
-                                    Some(guild_id),
-                                    Some(user_id),
-                                    Some(previous_balance),
-                                    Some(new_balance),
-                                    Some(change),
-                                    Some(reason),
-                                    Some(initiator),
-                                ) = (
-                                    fields.get("guild_id").and_then(|v| v.as_str()),
-                                    fields.get("user_id").and_then(|v| v.as_str()),
-                                    fields.get("previous_balance").and_then(|v| v.as_u64()),
-                                    fields.get("new_balance").and_then(|v| v.as_u64()),
-                                    fields.get("change").and_then(|v| v.as_i64()),
-                                    fields.get("reason").and_then(|v| v.as_str()),
-                                    fields.get("initiator").and_then(|v| v.as_str()),
-                                ) {
-                                    entries.push(LogEntryType::Balance {
-                                        timestamp: timestamp.to_string(),
-                                        guild_id: guild_id.to_string(),
-                                        user_id: user_id.to_string(),
-                                        previous_balance: previous_balance as u32,
-                                        new_balance: new_balance as u32,
-                                        change,
-                                        reason: reason.to_string(),
-                                        initiator: initiator.to_string(),
-                                    });
+                for line in reader.lines() {
+                    if let Ok(line_content) = line {
+                        if let Ok(json) = serde_json::from_str::<Value>(&line_content) {
+                            if let Some(timestamp) = json.get("timestamp").and_then(|v| v.as_str())
+                            {
+                                if let Some(fields) = json.get("fields") {
+                                    if let (
+                                        Some(guild_id),
+                                        Some(user_id),
+                                        Some(previous_balance),
+                                        Some(new_balance),
+                                        Some(change),
+                                        Some(reason),
+                                        Some(initiator),
+                                    ) = (
+                                        fields.get("guild_id").and_then(|v| v.as_str()),
+                                        fields.get("user_id").and_then(|v| v.as_str()),
+                                        fields.get("previous_balance").and_then(|v| v.as_u64()),
+                                        fields.get("new_balance").and_then(|v| v.as_u64()),
+                                        fields.get("change").and_then(|v| v.as_i64()),
+                                        fields.get("reason").and_then(|v| v.as_str()),
+                                        fields.get("initiator").and_then(|v| v.as_str()),
+                                    ) {
+                                        entries.push(LogEntryType::Balance {
+                                            timestamp: timestamp.to_string(),
+                                            guild_id: guild_id.to_string(),
+                                            user_id: user_id.to_string(),
+                                            previous_balance: previous_balance as u32,
+                                            new_balance: new_balance as u32,
+                                            change,
+                                            reason: reason.to_string(),
+                                            initiator: initiator.to_string(),
+                                        });
+                                    }
                                 }
                             }
                         }
