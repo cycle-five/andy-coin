@@ -15,7 +15,7 @@ pub type Context<'a> = poise::Context<'a, Data, Error>;
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Initialize logging system
     logging::init()?;
-    
+
     let token = std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
     let intents = serenity::GatewayIntents::non_privileged();
 
@@ -34,8 +34,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
-                tracing::info!("Bot is ready! Registered {} commands.", framework.options().commands.len());
-                
+                tracing::info!(
+                    "Bot is ready! Registered {} commands.",
+                    framework.options().commands.len()
+                );
+
                 // Load data from file
                 let data = Data::load().await;
                 Ok(data)
@@ -54,6 +57,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         tracing::error!("Client error: {}", e);
         return Err(e.into());
     }
-    
+
     Ok(())
 }

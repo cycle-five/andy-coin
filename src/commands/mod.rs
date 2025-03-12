@@ -1,7 +1,7 @@
 pub mod balance;
 pub mod config;
-pub mod leaderboard;
 pub mod give;
+pub mod leaderboard;
 
 pub use balance::balance;
 pub use config::config;
@@ -13,13 +13,7 @@ use crate::{Data, Error};
 
 // Helper function to get all commands
 pub fn _all_commands() -> Vec<poise::Command<Data, Error>> {
-    vec![
-        config(),
-        give(),
-        balance(),
-        leaderboard(),
-        flip(),
-    ]
+    vec![config(), give(), balance(), leaderboard(), flip()]
 }
 
 #[cfg(test)]

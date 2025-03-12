@@ -90,7 +90,7 @@ cargo run --bin audit help
 
 #### User Commands
 
-```
+```txt
 Commands executed by user 123456789012345678:
 Timestamp               Command        Guild           Arguments                                 Result    
 ----------------------------------------------------------------------------------------------------
@@ -100,7 +100,7 @@ Timestamp               Command        Guild           Arguments                
 
 #### User Balances
 
-```
+```txt
 Balance changes for user 987654321098765432:
 Timestamp               Guild           Previous        New             Change    Reason               Initiator      
 --------------------------------------------------------------------------------------------------------------
@@ -110,7 +110,7 @@ Timestamp               Guild           Previous        New             Change  
 
 #### Balance Summary
 
-```
+```txt
 Balance Change Summary:
 
 Guild: 123456789012345678

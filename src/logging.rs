@@ -2,10 +2,10 @@ use std::path::Path;
 use tracing::info;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{
+    EnvFilter,
     fmt::{self, format::FmtSpan},
     layer::SubscriberExt,
     util::SubscriberInitExt,
-    EnvFilter,
 };
 
 /// Log directory name
@@ -72,8 +72,10 @@ pub fn log_command(
     args: &str,
     success: bool,
 ) {
-    let guild_id_str = guild_id.map(|id| id.to_string()).unwrap_or_else(|| "DM".to_string());
-    
+    let guild_id_str = guild_id
+        .map(|id| id.to_string())
+        .unwrap_or_else(|| "DM".to_string());
+
     if success {
         info!(
             target: "command",
@@ -107,8 +109,10 @@ pub fn log_balance_change(
     initiator_id: Option<u64>,
 ) {
     let change = i64::from(new_balance) - i64::from(previous_balance);
-    let initiator = initiator_id.map(|id| id.to_string()).unwrap_or_else(|| "System".to_string());
-    
+    let initiator = initiator_id
+        .map(|id| id.to_string())
+        .unwrap_or_else(|| "System".to_string());
+
     info!(
         target: "balance",
         guild_id = guild_id.to_string(),
