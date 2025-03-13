@@ -1,0 +1,56 @@
+# Project Configuration
+
+## Tech Stack
+
+- Rust (1.85+)
+- Serenity, Poise libraries for discord
+- toml files for persisting and updating state (eventually need to improve this)
+- GitHub for version control
+- Manual deployment at the moment
+
+## Project Structure
+
+.
+├── Cargo.lock
+├── Cargo.toml
+├── memory_bank
+│   ├── activeContext.md
+│   ├── productContext.md
+│   ├── progress.md
+│   ├── projectBrief.md
+│   ├── systemPatterns.md
+│   └── techContext.md
+├── README.md
+└── src
+    ├── bin
+    │   └── audit.rs
+    ├── commands
+    │   ├── balance.rs
+    │   ├── config.rs
+    │   ├── give.rs
+    │   ├── leaderboard.rs
+    │   └── mod.rs
+    ├── data.rs
+    ├── logging.rs
+    └── main.rs
+
+## AdHoc Database
+
+- yaml file (andy_coin_data.yaml by default)
+
+## yaml file format
+
+```yaml
+balances: list
+- guild_id: int64
+  user_id: int64
+  balance: int64
+configs: list
+- guild_id: int64
+  giver_role_id: int64
+```
+
+## Development Workflow
+
+- Cline helps write and review code changes.
+- User will make edits and decide directions between Cline sessions.
