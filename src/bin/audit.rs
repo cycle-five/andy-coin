@@ -88,7 +88,7 @@ fn print_usage() {
 fn list_user_commands(user_id: &str) -> io::Result<()> {
     println!("Commands executed by user {}:", user_id);
     println!(
-        "{:<27} {:<15} {:<15} {:<40} {:<10}",
+        "{:<27} {:<20} {:<15} {:<40} {:<10}",
         "Timestamp", "Command", "Guild", "Arguments", "Result"
     );
     println!("{}", "-".repeat(100));
@@ -109,7 +109,7 @@ fn list_user_commands(user_id: &str) -> io::Result<()> {
             if entry_user_id == user_id {
                 found = true;
                 println!(
-                    "{:<27} {:<15} {:<15} {:<40} {:<10}",
+                    "{:<27} {:<20} {:<15} {:<40} {:<10}",
                     timestamp,
                     command,
                     guild_id,
@@ -135,7 +135,7 @@ fn list_user_commands(user_id: &str) -> io::Result<()> {
 fn list_user_balances(user_id: &str) -> io::Result<()> {
     println!("Balance changes for user {}:", user_id);
     println!(
-        "{:<27} {:<15} {:<15} {:<15} {:<10} {:<20} {:<15}",
+        "{:<27} {:<20} {:<15} {:<15} {:<10} {:<20} {:<15}",
         "Timestamp", "Guild", "Previous", "New", "Change", "Reason", "Initiator"
     );
     println!("{}", "-".repeat(110));
@@ -158,7 +158,7 @@ fn list_user_balances(user_id: &str) -> io::Result<()> {
             if entry_user_id == user_id {
                 found = true;
                 println!(
-                    "{:<27} {:<15} {:<15} {:<15} {:<+10} {:<20} {:<15}",
+                    "{:<27} {:<20} {:<15} {:<15} {:<+10} {:<20} {:<15}",
                     timestamp,
                     guild_id,
                     previous_balance,
