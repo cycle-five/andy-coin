@@ -1,5 +1,6 @@
 use crate::{data::VoteConfig, logging, Context, Error};
-use poise::serenity_prelude::{self as serenity, Guild};
+use poise::serenity_prelude::{self as serenity, model::guild, Guild};
+use core::error;
 use std::fmt::Write;
 
 /// Start a vote to reset all AndyCoins in the server
@@ -195,9 +196,10 @@ pub async fn config(
     #[description = "Minimum number of votes required (default: 10)"] min_votes: Option<u32>,
     #[description = "Percentage of YES votes required to pass (default: 70)"] majority_percentage: Option<u32>,
 ) -> Result<(), Error> {
-    let guild_id = ctx.guild_id().unwrap();
+    let guild_id = ctx.guild_id().expect("Guild ID not found");
     
     // Check if user has permission (server owner or admin)
+    #[allow(deprecated)]
     let permissions = ctx.author_member().await.unwrap().permissions(ctx.cache()).unwrap();
     if !permissions.administrator() && ctx.author().id != ctx.guild().unwrap().owner_id {
         ctx.say("You need to be a server administrator to configure vote settings.").await?;
@@ -278,6 +280,7 @@ pub async fn end(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
     
     // Check if user has permission (server owner or admin)
+    #[allow(deprecated)]
     let permissions = ctx.author_member().await.unwrap().permissions(ctx.cache()).unwrap();
     if !permissions.administrator() && ctx.author().id != ctx.guild().unwrap().owner_id {
         ctx.say("You need to be a server administrator to force end a vote.").await?;
