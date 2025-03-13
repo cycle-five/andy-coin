@@ -16,6 +16,7 @@
 - **Serde** - Serialization/deserialization framework
 - **Tracing** - Structured logging
 - **Rand** - Random number generation
+- **Chrono** - Date and time handling for vote timing
 
 ## Development Environment
 
@@ -52,6 +53,19 @@ balances:
 configs:
   - guild_id: u64
     giver_role_id: Option<u64>
+    vote_config:
+      cooldown_hours: u32
+      duration_minutes: u32
+      min_votes: u32
+      majority_percentage: u32
+    vote_status:
+      active: bool
+      start_time: Option<DateTime<Utc>>
+      end_time: Option<DateTime<Utc>>
+      initiator_id: Option<u64>
+      yes_votes: Vec<u64>
+      no_votes: Vec<u64>
+      last_vote_time: Option<DateTime<Utc>>
 ```
 
 ## Logging System
@@ -76,6 +90,10 @@ All commands use Discord's slash command interface:
 - `/leaderboard [global]` - View server or global leaderboard
 - `/config role <role>` - Set the role that can give AndyCoins
 - `/flip [guess] [bet]` - Flip a coin, optionally with a bet flag
+- `/vote <decision>` - Start a vote or cast a vote (yes/no) on resetting AndyCoins
+- `/vote_admin status` - Check the status of the current vote
+- `/vote_admin config [cooldown_hours] [duration_minutes] [min_votes] [majority_percentage]` - Configure vote settings
+- `/vote_admin end` - Force end the current vote (admin only)
 
 ## Concurrency Handling
 

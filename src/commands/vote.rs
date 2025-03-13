@@ -114,7 +114,7 @@ pub async fn vote(
 #[poise::command(
     slash_command,
     guild_only,
-    subcommands("status", "config", "end"),
+    subcommands("status", "config"),
     subcommand_required
 )]
 pub async fn vote_admin(_: Context<'_>) -> Result<(), Error> {
@@ -315,52 +315,6 @@ pub async fn config(
     if let Err(e) = ctx.data().save().await {
         ctx.say(format!("Warning: Failed to save settings: {}", e))
             .await?;
-    }
-
-    Ok(())
-}
-
-/// Force end the current vote (admin only)
-#[poise::command(slash_command, guild_only)]
-pub async fn end(ctx: Context<'_>) -> Result<(), Error> {
-    let guild_id = ctx.guild_id().unwrap();
-
-    // Check if user has permission (server owner or admin)
-    #[allow(deprecated)]
-    let permissions = ctx
-        .author_member()
-        .await
-        .unwrap()
-        .permissions(ctx.cache())
-        .unwrap();
-    if !permissions.administrator() && ctx.author().id != ctx.guild().unwrap().owner_id {
-        ctx.say("You need to be a server administrator to force end a vote.")
-            .await?;
-        return Ok(());
-    }
-
-    // End the vote
-    match ctx.data().end_vote(guild_id) {
-        Ok(vote_passed) => {
-            let result = if vote_passed { "PASSED" } else { "FAILED" };
-
-            ctx.say(format!(
-                "Vote has been force ended by an administrator. Result: {result}"
-            ))
-            .await?;
-
-            // Log vote end
-            logging::log_command(
-                "vote_end",
-                Some(guild_id.get()),
-                ctx.author().id.get(),
-                &format!("result: {}", result),
-                true,
-            );
-        }
-        Err(e) => {
-            ctx.say(format!("Error: {e}")).await?;
-        }
     }
 
     Ok(())

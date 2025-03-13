@@ -2,6 +2,20 @@
 
 AndyCoin Bot does one thing, let you give people in your server AndyCoin. It also does its best to cause chaos, indirectly.
 
+## Commands
+
+- `/give` - Give AndyCoins to a user
+- `/balance` - Check your AndyCoin balance or another user's balance
+- `/leaderboard` - See the server or global leaderboard for AndyCoin
+- `/flip` - Flip an AndyCoin, optionally guess heads or tails and gamble
+- `/config` - Configure the giver role for giving AndyCoins
+- `/vote` - Start a vote to reset all AndyCoins in the server or cast your vote
+  - Options: "Start a new vote", "Vote yes", or "Vote no"
+- `/vote_admin` - Administrative commands for vote management
+  - `/vote_admin status` - Check the status of the current vote
+  - `/vote_admin config` - Configure vote settings (cooldown, duration, etc.)
+  - `/vote_admin end` - Force end the current vote (admin only)
+
 ## AndyCoin Bot Logging and Auditing
 
 This document describes the logging and auditing system implemented for the AndyCoin Discord bot.
@@ -131,6 +145,36 @@ User ID                Net Change
 456789012345678901     +25            
 234567890123456789     -10            
 ```
+
+## Voting System
+
+The AndyCoin bot includes a democratic voting system that allows server members to vote on resetting all AndyCoins in the server. This feature is designed to add an element of chaos and community engagement.
+
+### How Voting Works
+
+1. Any user can start a vote using `/vote` with the "Start a new vote" option
+2. Users can cast their votes using `/vote` with "Vote yes" or "Vote no" options
+3. The vote runs for a configurable duration (default: 30 minutes)
+4. If the vote passes (default: requires at least 10 votes with 70% majority), all AndyCoins in the server are reset to 0
+5. After a vote, there's a cooldown period (default: 24 hours) before another vote can be started
+
+### Vote Configuration
+
+Server administrators can configure the voting system using `/vote_admin config`:
+
+- `cooldown_hours` - Hours between votes (default: 24)
+- `duration_minutes` - How long votes last (default: 30)
+- `min_votes` - Minimum number of votes required (default: 10)
+- `majority_percentage` - Percentage of YES votes required to pass (default: 70)
+
+### Vote Status
+
+Anyone can check the status of an ongoing vote using `/vote_admin status`, which shows:
+
+- Who initiated the vote
+- When the vote will end
+- Current vote counts and percentages
+- Whether the vote would pass or fail with current numbers
 
 ## Environment Variables
 
