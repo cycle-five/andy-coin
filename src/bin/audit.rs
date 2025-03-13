@@ -201,9 +201,7 @@ fn balance_summary() -> io::Result<()> {
         } = entry
         {
             // Update guild-user map
-            let guild_map = guild_user_changes
-                .entry(guild_id)
-                .or_default();
+            let guild_map = guild_user_changes.entry(guild_id).or_default();
             *guild_map.entry(user_id.clone()).or_insert(0) += change;
 
             // Update user totals

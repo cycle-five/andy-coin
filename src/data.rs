@@ -1,8 +1,8 @@
+use chrono;
 use poise::serenity_prelude as serenity;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use chrono;
 
 use crate::DATA_FILE;
 
@@ -24,9 +24,9 @@ pub struct VoteConfig {
 impl Default for VoteConfig {
     fn default() -> Self {
         Self {
-            cooldown_hours: 24,    // Once per day
-            duration_minutes: 30,   // Half hour voting time
-            min_votes: 10,          // At least 10 votes
+            cooldown_hours: 24,      // Once per day
+            duration_minutes: 30,    // Half hour voting time
+            min_votes: 10,           // At least 10 votes
             majority_percentage: 70, // 7/10 majority (70%)
         }
     }
@@ -493,11 +493,14 @@ impl Data {
 
         // Check if a vote was recently completed (cooldown period)
         if let Some(last_vote_time) = config_ref.vote_status.last_vote_time {
-            let cooldown_duration = chrono::Duration::hours(config_ref.vote_config.cooldown_hours as i64);
+            let cooldown_duration =
+                chrono::Duration::hours(config_ref.vote_config.cooldown_hours as i64);
             let now = chrono::Utc::now();
-            
+
             if now < last_vote_time + cooldown_duration {
-                return Err("A vote was recently completed. Please wait for the cooldown period to end");
+                return Err(
+                    "A vote was recently completed. Please wait for the cooldown period to end",
+                );
             }
         }
 
@@ -549,8 +552,14 @@ impl Data {
         let user_id_u64 = user_id.get();
 
         // Remove user from both vote lists to avoid duplicate votes
-        config_ref.vote_status.yes_votes.retain(|id| *id != user_id_u64);
-        config_ref.vote_status.no_votes.retain(|id| *id != user_id_u64);
+        config_ref
+            .vote_status
+            .yes_votes
+            .retain(|id| *id != user_id_u64);
+        config_ref
+            .vote_status
+            .no_votes
+            .retain(|id| *id != user_id_u64);
 
         // Add user's vote
         if vote_yes {
@@ -598,7 +607,10 @@ impl Data {
         if vote_passed {
             if let Some(guild_balances) = self.guild_balances.get_mut(&guild_id) {
                 guild_balances.clear();
-                tracing::info!("Reset all balances in guild {} due to successful vote", guild_id);
+                tracing::info!(
+                    "Reset all balances in guild {} due to successful vote",
+                    guild_id
+                );
             }
         }
 

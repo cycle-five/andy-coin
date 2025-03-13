@@ -16,7 +16,15 @@ use crate::{Data, Error};
 
 // Helper function to get all commands
 pub fn _all_commands() -> Vec<poise::Command<Data, Error>> {
-    vec![config(), give(), balance(), leaderboard(), flip(), vote(), vote_admin()]
+    vec![
+        config(),
+        give(),
+        balance(),
+        leaderboard(),
+        flip(),
+        vote(),
+        vote_admin(),
+    ]
 }
 
 #[cfg(test)]
