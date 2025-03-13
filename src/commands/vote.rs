@@ -1,6 +1,4 @@
 use crate::{data::VoteConfig, logging, Context, Error};
-use poise::serenity_prelude::{self as serenity, model::guild, Guild};
-use core::error;
 use std::fmt::Write;
 
 /// Start a vote to reset all AndyCoins in the server

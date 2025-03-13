@@ -47,7 +47,9 @@ pub struct VoteStatus {
 pub struct GuildConfig {
     pub guild_id: u64,
     pub giver_role_id: Option<u64>,
+    #[serde(default)]
     pub vote_config: VoteConfig,
+    #[serde(default)]
     pub vote_status: VoteStatus,
 }
 
