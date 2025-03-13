@@ -50,8 +50,13 @@ pub fn init() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // Set up the subscriber with all layers
     // Use env filter to allow runtime configuration of log levels
-    // Default to INFO level if not specified
-    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    // Default to INFO level if not specified, but filter out serenity heartbeat logs
+    let env_filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| {
+            EnvFilter::new("info")
+                // Filter out serenity logs
+                .add_directive("serenity=error".parse().unwrap())
+        });
 
     tracing_subscriber::registry()
         .with(env_filter)

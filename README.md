@@ -44,7 +44,7 @@ Logs are stored in JSON format with the following structure:
 
 ```json
 {
-  "timestamp": "2025-03-11T18:30:45.123Z",
+  "timestamp": "2025-03-11T18:30:45.123456Z",
   "level": "INFO",
   "target": "command",
   "fields": {
@@ -62,7 +62,7 @@ Logs are stored in JSON format with the following structure:
 
 ```json
 {
-  "timestamp": "2025-03-11T18:30:45.123Z",
+  "timestamp": "2025-03-11T18:30:45.123456Z",
   "level": "INFO",
   "target": "balance",
   "fields": {
