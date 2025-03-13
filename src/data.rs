@@ -2,6 +2,7 @@ use poise::serenity_prelude as serenity;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use chrono;
 
 use crate::DATA_FILE;
 
@@ -12,10 +13,42 @@ pub struct UserBalance {
     pub balance: u32,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct VoteConfig {
+    pub cooldown_hours: u32,
+    pub duration_minutes: u32,
+    pub min_votes: u32,
+    pub majority_percentage: u32,
+}
+
+impl Default for VoteConfig {
+    fn default() -> Self {
+        Self {
+            cooldown_hours: 24,    // Once per day
+            duration_minutes: 30,   // Half hour voting time
+            min_votes: 10,          // At least 10 votes
+            majority_percentage: 70, // 7/10 majority (70%)
+        }
+    }
+}
+
+#[derive(Default, Clone, Serialize, Deserialize)]
+pub struct VoteStatus {
+    pub active: bool,
+    pub start_time: Option<chrono::DateTime<chrono::Utc>>,
+    pub end_time: Option<chrono::DateTime<chrono::Utc>>,
+    pub initiator_id: Option<u64>,
+    pub yes_votes: Vec<u64>,
+    pub no_votes: Vec<u64>,
+    pub last_vote_time: Option<chrono::DateTime<chrono::Utc>>,
+}
+
 #[derive(Default, Serialize, Deserialize)]
 pub struct GuildConfig {
     pub guild_id: u64,
     pub giver_role_id: Option<u64>,
+    pub vote_config: VoteConfig,
+    pub vote_status: VoteStatus,
 }
 
 pub struct Data {
@@ -158,6 +191,8 @@ impl Data {
             configs.push(GuildConfig {
                 guild_id,
                 giver_role_id: config.giver_role_id,
+                vote_config: config.vote_config.clone(),
+                vote_status: config.vote_status.clone(),
             });
         }
 
@@ -351,6 +386,8 @@ impl Data {
             .or_insert_with(|| GuildConfig {
                 guild_id: guild_id.get(),
                 giver_role_id: role_id_u64,
+                vote_config: VoteConfig::default(),
+                vote_status: VoteStatus::default(),
             });
     }
 
@@ -394,6 +431,203 @@ impl Data {
     pub fn reset(&self) {
         self.guild_balances.clear();
         self.guild_configs.clear();
+    }
+
+    // Get vote config for a guild
+    pub fn get_vote_config(&self, guild_id: serenity::GuildId) -> VoteConfig {
+        self.guild_configs
+            .get(&guild_id)
+            .map(|config| config.vote_config.clone())
+            .unwrap_or_default()
+    }
+
+    // Set vote config for a guild
+    pub fn set_vote_config(&self, guild_id: serenity::GuildId, vote_config: &VoteConfig) {
+        let my_vote_config = vote_config.clone();
+        self.guild_configs
+            .entry(guild_id)
+            .and_modify(|config| config.vote_config = my_vote_config.clone())
+            .or_insert_with(|| GuildConfig {
+                guild_id: guild_id.get(),
+                giver_role_id: None,
+                vote_config: my_vote_config,
+                vote_status: VoteStatus::default(),
+            });
+    }
+
+    // Get vote status for a guild
+    pub fn get_vote_status(&self, guild_id: serenity::GuildId) -> VoteStatus {
+        self.guild_configs
+            .get(&guild_id)
+            .map(|config| config.vote_status.clone())
+            .unwrap_or_default()
+    }
+
+    // Start a vote in a guild
+    pub fn start_vote(
+        &self,
+        guild_id: serenity::GuildId,
+        initiator_id: serenity::UserId,
+    ) -> Result<chrono::DateTime<chrono::Utc>, &'static str> {
+        let mut config_ref = match self.guild_configs.get_mut(&guild_id) {
+            Some(config) => config,
+            None => {
+                // Create a new config if it doesn't exist
+                let config = GuildConfig {
+                    guild_id: guild_id.get(),
+                    giver_role_id: None,
+                    vote_config: VoteConfig::default(),
+                    vote_status: VoteStatus::default(),
+                };
+                self.guild_configs.insert(guild_id, config);
+                self.guild_configs.get_mut(&guild_id).unwrap()
+            }
+        };
+
+        // Check if a vote is already active
+        if config_ref.vote_status.active {
+            return Err("A vote is already active in this server");
+        }
+
+        // Check if a vote was recently completed (cooldown period)
+        if let Some(last_vote_time) = config_ref.vote_status.last_vote_time {
+            let cooldown_duration = chrono::Duration::hours(config_ref.vote_config.cooldown_hours as i64);
+            let now = chrono::Utc::now();
+            
+            if now < last_vote_time + cooldown_duration {
+                return Err("A vote was recently completed. Please wait for the cooldown period to end");
+            }
+        }
+
+        // Start the vote
+        let now = chrono::Utc::now();
+        let duration = chrono::Duration::minutes(config_ref.vote_config.duration_minutes as i64);
+        let end_time = now + duration;
+
+        config_ref.vote_status = VoteStatus {
+            active: true,
+            start_time: Some(now),
+            end_time: Some(end_time),
+            initiator_id: Some(initiator_id.get()),
+            yes_votes: vec![initiator_id.get()], // Initiator automatically votes yes
+            no_votes: vec![],
+            last_vote_time: None,
+        };
+
+        Ok(end_time)
+    }
+
+    // Cast a vote
+    pub fn cast_vote(
+        &self,
+        guild_id: serenity::GuildId,
+        user_id: serenity::UserId,
+        vote_yes: bool,
+    ) -> Result<(), &'static str> {
+        let mut config_ref = match self.guild_configs.get_mut(&guild_id) {
+            Some(config) => config,
+            None => return Err("No vote is active in this server"),
+        };
+
+        // Check if a vote is active
+        if !config_ref.vote_status.active {
+            return Err("No vote is active in this server");
+        }
+
+        // Check if the vote has expired
+        let now = chrono::Utc::now();
+        if let Some(end_time) = config_ref.vote_status.end_time {
+            if now > end_time {
+                // Auto-end the vote
+                self.end_vote(guild_id)?;
+                return Err("The vote has ended");
+            }
+        }
+
+        let user_id_u64 = user_id.get();
+
+        // Remove user from both vote lists to avoid duplicate votes
+        config_ref.vote_status.yes_votes.retain(|id| *id != user_id_u64);
+        config_ref.vote_status.no_votes.retain(|id| *id != user_id_u64);
+
+        // Add user's vote
+        if vote_yes {
+            config_ref.vote_status.yes_votes.push(user_id_u64);
+        } else {
+            config_ref.vote_status.no_votes.push(user_id_u64);
+        }
+
+        Ok(())
+    }
+
+    // End a vote and process the results
+    pub fn end_vote(&self, guild_id: serenity::GuildId) -> Result<bool, &'static str> {
+        let mut config_ref = match self.guild_configs.get_mut(&guild_id) {
+            Some(config) => config,
+            None => return Err("No vote is active in this server"),
+        };
+
+        // Check if a vote is active
+        if !config_ref.vote_status.active {
+            return Err("No vote is active in this server");
+        }
+
+        let yes_votes = config_ref.vote_status.yes_votes.len();
+        let no_votes = config_ref.vote_status.no_votes.len();
+        let total_votes = yes_votes + no_votes;
+
+        // Record the vote end time
+        let now = chrono::Utc::now();
+        config_ref.vote_status.last_vote_time = Some(now);
+        config_ref.vote_status.active = false;
+
+        // Check if there are enough votes
+        if total_votes < config_ref.vote_config.min_votes as usize {
+            return Ok(false); // Not enough votes, vote fails
+        }
+
+        // Calculate the percentage of yes votes
+        let yes_percentage = (yes_votes as f64 / total_votes as f64) * 100.0;
+
+        // Check if the majority threshold is met
+        let vote_passed = yes_percentage >= config_ref.vote_config.majority_percentage as f64;
+
+        // If the vote passed, reset all balances in the guild
+        if vote_passed {
+            if let Some(guild_balances) = self.guild_balances.get_mut(&guild_id) {
+                guild_balances.clear();
+                tracing::info!("Reset all balances in guild {} due to successful vote", guild_id);
+            }
+        }
+
+        Ok(vote_passed)
+    }
+
+    // Check if a vote has expired and end it if necessary
+    pub fn check_vote_expiry(&self, guild_id: serenity::GuildId) -> Option<bool> {
+        let config = match self.guild_configs.get(&guild_id) {
+            Some(config) => config,
+            None => return None,
+        };
+
+        // Check if a vote is active
+        if !config.vote_status.active {
+            return None;
+        }
+
+        // Check if the vote has expired
+        let now = chrono::Utc::now();
+        if let Some(end_time) = config.vote_status.end_time {
+            if now > end_time {
+                // End the vote
+                match self.end_vote(guild_id) {
+                    Ok(result) => return Some(result),
+                    Err(_) => return None,
+                }
+            }
+        }
+
+        None
     }
 }
 
@@ -699,10 +933,14 @@ configs:
             GuildConfig {
                 guild_id: 1,
                 giver_role_id: Some(789),
+                vote_config: VoteConfig::default(),
+                vote_status: VoteStatus::default(),
             },
             GuildConfig {
                 guild_id: 2,
                 giver_role_id: None,
+                vote_config: VoteConfig::default(),
+                vote_status: VoteStatus::default(),
             },
         ];
 
@@ -803,10 +1041,14 @@ configs:
             GuildConfig {
                 guild_id: 1,
                 giver_role_id: Some(789),
+                vote_config: VoteConfig::default(),
+                vote_status: VoteStatus::default(),
             },
             GuildConfig {
                 guild_id: 2,
                 giver_role_id: None,
+                vote_config: VoteConfig::default(),
+                vote_status: VoteStatus::default(),
             },
         ];
 

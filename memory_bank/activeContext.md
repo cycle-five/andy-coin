@@ -2,12 +2,13 @@
 
 ## Current Focus
 
-- Implementing the `/vote` command for server reset of AndyCoins
 - Enhancing logging and auditing capabilities
 - Improving error handling and user feedback
+- Creating web version of leaderboard
 
 ## Recent Changes
 
+- Implemented the `/vote` command for server reset of AndyCoins
 - Added comprehensive logging system with structured JSON output
 - Implemented audit tool for tracking balance changes and command usage
 - Added coin flipping functionality with gambling feature
@@ -16,16 +17,15 @@
 ## Known Issues
 
 - Need to improve data persistence with more robust storage solution
-- Server reset voting mechanism not yet implemented
 - No web interface for leaderboard yet
 
 ## Next Steps
 
-1. Implement the `/vote` command for server reset
-2. Create web version of leaderboard
-3. Improve data persistence mechanism
-4. Add more comprehensive error handling
-5. Enhance testing coverage
+1. Create web version of leaderboard
+2. Improve data persistence mechanism
+3. Add more comprehensive error handling
+4. Enhance testing coverage
+5. Add periodic check for expired votes
 
 ## Development Environment
 

@@ -28,6 +28,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 commands::config::config(),
                 commands::config::role(),
                 commands::config::flip(),
+                commands::vote::vote(),
+                commands::vote::vote_admin(),
             ],
             ..Default::default()
         })
