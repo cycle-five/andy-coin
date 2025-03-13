@@ -1,6 +1,6 @@
 # AndyCoin progress
 
-## Working
+## Implemented
 
 - /give - Give a user AndyCoins
 - /balance - See your AndyCoin balance

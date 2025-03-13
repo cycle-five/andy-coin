@@ -1,82 +1,109 @@
 use crate::{Context, Error, data::VoteConfig, logging};
 use std::fmt::Write;
 
-/// Start a vote to reset all AndyCoins in the server
+/// Vote decision options
+#[derive(Debug, poise::ChoiceParameter)]
+pub enum VoteDecision {
+    #[name = "Start a new vote"]
+    Start,
+    #[name = "Vote yes"]
+    Yes,
+    #[name = "Vote no"]
+    No,
+}
+
+/// Start a vote to reset all AndyCoins in the server or cast your vote
 #[poise::command(slash_command, guild_only)]
 pub async fn vote(
     ctx: Context<'_>,
-    #[description = "Vote yes or no (default: yes)"] vote_yes: Option<bool>,
+    #[description = "Your vote decision"] decision: VoteDecision,
 ) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
     let user_id = ctx.author().id;
 
-    // If vote_yes is provided, cast a vote
-    if let Some(vote_yes) = vote_yes {
-        match ctx.data().cast_vote(guild_id, user_id, vote_yes) {
-            Ok(_) => {
-                let vote_type = if vote_yes { "YES" } else { "NO" };
-                ctx.say(format!(
-                    "You have voted {vote_type} on the current reset proposal."
-                ))
-                .await?;
-
-                // Log successful vote
-                logging::log_command(
-                    "vote_cast",
-                    Some(guild_id.get()),
-                    ctx.author().id.get(),
-                    &format!("vote: {}", vote_type),
-                    true,
-                );
-            }
-            Err(e) => {
-                ctx.say(format!("Error: {e}")).await?;
+    match decision {
+        VoteDecision::Yes => {
+            match ctx.data().cast_vote(guild_id, user_id, true) {
+                Ok(_) => {
+                    ctx.say("You have voted YES on the current reset proposal.").await?;
+                    
+                    // Log successful vote
+                    logging::log_command(
+                        "vote_cast",
+                        Some(guild_id.get()),
+                        ctx.author().id.get(),
+                        "vote: YES",
+                        true,
+                    );
+                }
+                Err(e) => {
+                    ctx.say(format!("Error: {e}")).await?;
+                }
             }
         }
-        return Ok(());
-    }
-
-    // Otherwise, start a new vote
-    match ctx.data().start_vote(guild_id, user_id) {
-        Ok(end_time) => {
-            let vote_config = ctx.data().get_vote_config(guild_id);
-            let end_time_str = end_time.format("%H:%M:%S UTC");
-
-            let mut response = String::new();
-            writeln!(&mut response, "🗳️ **AndyCoin Reset Vote Started**")?;
-            writeln!(
-                &mut response,
-                "A vote to reset all AndyCoins in this server has been started by {}.",
-                ctx.author().name
-            )?;
-            writeln!(&mut response, "The vote will end at {end_time_str}.")?;
-            writeln!(
-                &mut response,
-                "Requirements: At least {} votes with {}% majority to pass.",
-                vote_config.min_votes, vote_config.majority_percentage
-            )?;
-            writeln!(
-                &mut response,
-                "Use `/vote yes` to vote in favor or `/vote no` to vote against."
-            )?;
-            writeln!(
-                &mut response,
-                "⚠️ If the vote passes, all AndyCoins in this server will be reset to 0!"
-            )?;
-
-            ctx.say(response).await?;
-
-            // Log successful vote start
-            logging::log_command(
-                "vote_start",
-                Some(guild_id.get()),
-                ctx.author().id.get(),
-                &format!("end_time: {}", end_time_str),
-                true,
-            );
+        VoteDecision::No => {
+            match ctx.data().cast_vote(guild_id, user_id, false) {
+                Ok(_) => {
+                    ctx.say("You have voted NO on the current reset proposal.").await?;
+                    
+                    // Log successful vote
+                    logging::log_command(
+                        "vote_cast",
+                        Some(guild_id.get()),
+                        ctx.author().id.get(),
+                        "vote: NO",
+                        true,
+                    );
+                }
+                Err(e) => {
+                    ctx.say(format!("Error: {e}")).await?;
+                }
+            }
         }
-        Err(e) => {
-            ctx.say(format!("Error: {e}")).await?;
+        VoteDecision::Start => {
+            // Start a new vote
+            match ctx.data().start_vote(guild_id, user_id) {
+                Ok(end_time) => {
+                    let vote_config = ctx.data().get_vote_config(guild_id);
+                    let end_time_str = end_time.format("%H:%M:%S UTC");
+
+                    let mut response = String::new();
+                    writeln!(&mut response, "🗳️ **AndyCoin Reset Vote Started**")?;
+                    writeln!(
+                        &mut response,
+                        "A vote to reset all AndyCoins in this server has been started by {}.",
+                        ctx.author().name
+                    )?;
+                    writeln!(&mut response, "The vote will end at {end_time_str}.")?;
+                    writeln!(
+                        &mut response,
+                        "Requirements: At least {} votes with {}% majority to pass.",
+                        vote_config.min_votes, vote_config.majority_percentage
+                    )?;
+                    writeln!(
+                        &mut response,
+                        "Use `/vote yes` to vote in favor or `/vote no` to vote against."
+                    )?;
+                    writeln!(
+                        &mut response,
+                        "⚠️ If the vote passes, all AndyCoins in this server will be reset to 0!"
+                    )?;
+
+                    ctx.say(response).await?;
+
+                    // Log successful vote start
+                    logging::log_command(
+                        "vote_start",
+                        Some(guild_id.get()),
+                        ctx.author().id.get(),
+                        &format!("end_time: {}", end_time_str),
+                        true,
+                    );
+                }
+                Err(e) => {
+                    ctx.say(format!("Error: {e}")).await?;
+                }
+            }
         }
     }
 
