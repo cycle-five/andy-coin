@@ -1,0 +1,55 @@
+{
+  "family": "andy-coin",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/andy-coin-task-role",
+  "networkMode": "awsvpc",
+  "containerDefinitions": [
+    {
+      "name": "andy-coin",
+      "image": "ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com/andy-coin:latest",
+      "essential": true,
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/andy-coin",
+          "awslogs-region": "REGION",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "environment": [
+        {
+          "name": "RUST_LOG",
+          "value": "info"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "DISCORD_TOKEN",
+          "valueFrom": "arn:aws:ssm:REGION:ACCOUNT_ID:parameter/andy-coin/discord-token"
+        }
+      ],
+      "mountPoints": [
+        {
+          "sourceVolume": "andy-coin-data",
+          "containerPath": "/app/data",
+          "readOnly": false
+        }
+      ]
+    }
+  ],
+  "volumes": [
+    {
+      "name": "andy-coin-data",
+      "efsVolumeConfiguration": {
+        "fileSystemId": "fs-XXXXXXXX",
+        "rootDirectory": "/andy-coin/data",
+        "transitEncryption": "ENABLED"
+      }
+    }
+  ],
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "256",
+  "memory": "512"
+}

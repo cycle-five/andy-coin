@@ -1,0 +1,12 @@
+target/
+logs/
+*.yaml
+.git/
+.gitignore
+Dockerfile
+docker-compose.yml
+kubernetes/
+aws/
+azure/
+cloudflare/
+README.md

@@ -16,6 +16,164 @@ AndyCoin Bot does one thing, let you give people in your server AndyCoin. It als
   - `/vote_admin config` - Configure vote settings (cooldown, duration, etc.)
   - `/vote_admin end` - Force end the current vote (admin only)
 
+## Deployment Options
+
+AndyCoin Bot can be deployed in various ways:
+
+### Docker
+
+The simplest way to run AndyCoin Bot is using Docker:
+
+```bash
+# Build the Docker image
+docker build -t andy-coin:latest .
+
+# Run the container
+docker run -d \
+  --name andy-coin \
+  -e DISCORD_TOKEN=your_discord_token \
+  -e RUST_LOG=info \
+  -v ./data:/app/data \
+  -v ./logs:/app/logs \
+  andy-coin:latest
+```
+
+### Docker Compose
+
+For a more managed deployment, use Docker Compose:
+
+```bash
+# Create a .env file with your Discord token
+echo "DISCORD_TOKEN=your_discord_token" > .env
+
+# Start the service
+docker-compose up -d
+```
+
+### Kubernetes
+
+To deploy on Kubernetes:
+
+1. Update the secret with your Discord token:
+
+```bash
+# Create a base64 encoded token
+TOKEN_BASE64=$(echo -n "your_discord_token" | base64)
+
+# Update the secret.yaml file
+sed -i "s/RElTQ09SRF9UT0tFTl9IRVJF/$TOKEN_BASE64/" kubernetes/secret.yaml
+
+# Apply the Kubernetes manifests
+kubectl apply -k kubernetes/
+```
+
+### AWS ECS
+
+To deploy on AWS ECS:
+
+1. Create an ECR repository:
+
+```bash
+aws ecr create-repository --repository-name andy-coin
+```
+
+2. Build and push the Docker image:
+
+```bash
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin your-account-id.dkr.ecr.us-east-1.amazonaws.com
+docker build -t your-account-id.dkr.ecr.us-east-1.amazonaws.com/andy-coin:latest .
+docker push your-account-id.dkr.ecr.us-east-1.amazonaws.com/andy-coin:latest
+```
+
+3. Create an EFS file system for persistent storage:
+
+```bash
+aws efs create-file-system --performance-mode generalPurpose --throughput-mode bursting --tags Key=Name,Value=andy-coin-data
+```
+
+4. Store your Discord token in AWS Parameter Store:
+
+```bash
+aws ssm put-parameter --name /andy-coin/discord-token --type SecureString --value "your_discord_token"
+```
+
+5. Deploy using CloudFormation:
+
+```bash
+aws cloudformation deploy \
+  --template-file aws/cloudformation.yaml \
+  --stack-name andy-coin \
+  --parameter-overrides \
+    VpcId=vpc-xxxxxxxx \
+    SubnetIds=subnet-xxxxxxxx,subnet-yyyyyyyy \
+    EfsFileSystemId=fs-xxxxxxxx
+```
+
+### Azure
+
+To deploy on Azure:
+
+1. Create an Azure Container Registry:
+
+```bash
+az acr create --resource-group myResourceGroup --name myRegistry --sku Basic
+```
+
+2. Build and push the Docker image:
+
+```bash
+az acr login --name myRegistry
+docker build -t myregistry.azurecr.io/andy-coin:latest .
+docker push myregistry.azurecr.io/andy-coin:latest
+```
+
+3. Create a storage account and file share:
+
+```bash
+az storage account create --name mystorageaccount --resource-group myResourceGroup --location eastus --sku Standard_LRS
+az storage share create --name andy-coin-data --account-name mystorageaccount
+```
+
+4. Deploy using ARM template:
+
+```bash
+az deployment group create \
+  --resource-group myResourceGroup \
+  --template-file azure/app-service.json \
+  --parameters \
+    discordToken=your_discord_token \
+    storageAccountName=mystorageaccount \
+    storageAccountKey=$(az storage account keys list --resource-group myResourceGroup --account-name mystorageaccount --query "[0].value" -o tsv) \
+    registryUsername=$(az acr credential show --name myRegistry --query "username" -o tsv) \
+    registryPassword=$(az acr credential show --name myRegistry --query "passwords[0].value" -o tsv) \
+    imageName=myregistry.azurecr.io/andy-coin:latest
+```
+
+### Cloudflare
+
+AndyCoin Bot can be monitored and backed up using Cloudflare Workers:
+
+1. Create a D1 database:
+
+```bash
+cd cloudflare
+wrangler d1 create andy_coin_db
+```
+
+2. Create a KV namespace:
+
+```bash
+wrangler kv:namespace create ANDY_COIN_KV
+```
+
+3. Update the wrangler.toml file with your database ID and KV namespace ID.
+
+4. Deploy the worker:
+
+```bash
+wrangler deploy
+```
+
 ## AndyCoin Bot Logging and Auditing
 
 This document describes the logging and auditing system implemented for the AndyCoin Discord bot.
@@ -181,3 +339,18 @@ Anyone can check the status of an ongoing vote using `/vote_admin status`, which
 The logging system respects the following environment variables:
 
 - `RUST_LOG` - Controls the log level (e.g., `info`, `debug`, `trace`)
+- `DISCORD_TOKEN` - Your Discord bot token (required)
+
+## Conclusion
+
+AndyCoin Bot is now fully containerized and can be deployed in various environments:
+
+- **Docker/Docker Compose**: For simple, local deployments
+- **Kubernetes**: For scalable, orchestrated deployments
+- **AWS ECS**: For managed container deployments on AWS
+- **Azure App Service/Container Instances**: For managed container deployments on Azure
+- **Cloudflare Workers**: For monitoring, health checks, and backups
+
+Each deployment option provides persistent storage for the bot's data, ensuring that user balances and configurations are preserved across restarts and updates. Choose the deployment option that best fits your infrastructure and requirements.
+
+For any issues or questions, please open an issue on the repository.

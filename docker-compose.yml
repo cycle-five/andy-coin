@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  andy-coin:
+    build: .
+    image: andy-coin:latest
+    container_name: andy-coin
+    restart: unless-stopped
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - RUST_LOG=info
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs

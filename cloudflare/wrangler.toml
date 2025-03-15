@@ -1,0 +1,15 @@
+name = "andy-coin-proxy"
+main = "src/index.js"
+compatibility_date = "2023-01-01"
+
+[vars]
+DISCORD_BOT_URL = "https://your-andy-coin-instance.example.com"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "andy_coin_db"
+database_id = "your-d1-database-id"
+
+[[kv_namespaces]]
+binding = "ANDY_COIN_KV"
+id = "your-kv-namespace-id"

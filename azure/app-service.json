@@ -1,0 +1,179 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "appName": {
+      "type": "string",
+      "defaultValue": "andy-coin",
+      "metadata": {
+        "description": "The name of the web app that you wish to create."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Location for all resources."
+      }
+    },
+    "sku": {
+      "type": "string",
+      "defaultValue": "B1",
+      "metadata": {
+        "description": "The SKU of App Service Plan."
+      }
+    },
+    "linuxFxVersion": {
+      "type": "string",
+      "defaultValue": "DOCKER|yourregistry.azurecr.io/andy-coin:latest",
+      "metadata": {
+        "description": "The Runtime stack of current web app"
+      }
+    },
+    "registryUrl": {
+      "type": "string",
+      "defaultValue": "https://yourregistry.azurecr.io",
+      "metadata": {
+        "description": "The URL of the container registry"
+      }
+    },
+    "registryUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "The username for the container registry"
+      }
+    },
+    "registryPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The password for the container registry"
+      }
+    },
+    "discordToken": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Discord bot token"
+      }
+    },
+    "storageAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "Storage account name"
+      }
+    },
+    "storageAccountKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Storage account key"
+      }
+    },
+    "fileShareName": {
+      "type": "string",
+      "defaultValue": "andy-coin-data",
+      "metadata": {
+        "description": "File share name"
+      }
+    }
+  },
+  "variables": {
+    "appServicePlanName": "[concat(parameters('appName'), '-plan')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2021-02-01",
+      "name": "[variables('appServicePlanName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[parameters('sku')]"
+      },
+      "kind": "linux",
+      "properties": {
+        "reserved": true
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2021-02-01",
+      "name": "[parameters('appName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]"
+      ],
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+        "siteConfig": {
+          "linuxFxVersion": "[parameters('linuxFxVersion')]",
+          "alwaysOn": true,
+          "appSettings": [
+            {
+              "name": "WEBSITES_ENABLE_APP_SERVICE_STORAGE",
+              "value": "false"
+            },
+            {
+              "name": "DOCKER_REGISTRY_SERVER_URL",
+              "value": "[parameters('registryUrl')]"
+            },
+            {
+              "name": "DOCKER_REGISTRY_SERVER_USERNAME",
+              "value": "[parameters('registryUsername')]"
+            },
+            {
+              "name": "DOCKER_REGISTRY_SERVER_PASSWORD",
+              "value": "[parameters('registryPassword')]"
+            },
+            {
+              "name": "DISCORD_TOKEN",
+              "value": "[parameters('discordToken')]"
+            },
+            {
+              "name": "RUST_LOG",
+              "value": "info"
+            },
+            {
+              "name": "WEBSITES_CONTAINER_START_TIME_LIMIT",
+              "value": "600"
+            },
+            {
+              "name": "AZURE_STORAGE_ACCOUNT",
+              "value": "[parameters('storageAccountName')]"
+            },
+            {
+              "name": "AZURE_STORAGE_KEY",
+              "value": "[parameters('storageAccountKey')]"
+            },
+            {
+              "name": "AZURE_STORAGE_SHARE",
+              "value": "[parameters('fileShareName')]"
+            }
+          ]
+        }
+      },
+      "resources": [
+        {
+          "type": "config",
+          "apiVersion": "2021-02-01",
+          "name": "azurestorageaccounts",
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/sites', parameters('appName'))]"
+          ],
+          "properties": {
+            "andy-coin-data": {
+              "type": "AzureFiles",
+              "shareName": "[parameters('fileShareName')]",
+              "mountPath": "/app/data",
+              "accountName": "[parameters('storageAccountName')]",
+              "accessKey": "[parameters('storageAccountKey')]"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "outputs": {
+    "appServiceUrl": {
+      "type": "string",
+      "value": "[concat('https://', reference(resourceId('Microsoft.Web/sites', parameters('appName'))).defaultHostName)]"
+    }
+  }
+}
