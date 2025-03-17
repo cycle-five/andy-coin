@@ -53,6 +53,7 @@ pub struct GuildConfig {
     pub vote_status: VoteStatus,
 }
 
+/// Main centrailized data structure for the bot. Should it use the InnerData idiom?
 pub struct Data {
     // Map of guild_id -> (user_id -> balance)
     pub guild_balances:

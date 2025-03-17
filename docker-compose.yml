@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   andy-coin:
     build: .
@@ -8,7 +6,7 @@ services:
     restart: unless-stopped
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN}
-      - RUST_LOG=info
+      - RUST_LOG=info,serenity=error
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs

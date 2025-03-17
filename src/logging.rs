@@ -54,8 +54,8 @@ pub fn init() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| {
             EnvFilter::new("info")
-                // Filter out serenity logs
-                .add_directive("serenity=error".parse().unwrap())
+            // Filter out serenity logs
+            .add_directive("serenity=error".parse().unwrap())
         });
 
     tracing_subscriber::registry()
@@ -83,7 +83,7 @@ pub fn log_command(
 
     if success {
         info!(
-            target: "command",
+            target: "andy_coin::command",
             command = command_name,
             guild_id = guild_id_str,
             user_id = user_id.to_string(),
@@ -93,7 +93,7 @@ pub fn log_command(
         );
     } else {
         info!(
-            target: "command",
+            target: "andy_coin::command",
             command = command_name,
             guild_id = guild_id_str,
             user_id = user_id.to_string(),
@@ -119,7 +119,7 @@ pub fn log_balance_change(
         .unwrap_or_else(|| "System".to_string());
 
     info!(
-        target: "balance",
+        target: "andy_coin::balance",
         guild_id = guild_id.to_string(),
         user_id = user_id.to_string(),
         previous_balance = previous_balance,
