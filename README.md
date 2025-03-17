@@ -31,7 +31,7 @@ docker build -t andy-coin:latest .
 # Run the container
 docker run -d \
   --name andy-coin \
-  -e DISCORD_TOKEN=your_discord_token \
+  -e DISCORD_TOKEN=${DISCORD_TOKEN} \
   -e RUST_LOG=info \
   -v ./data:/app/data \
   -v ./logs:/app/logs \
@@ -343,7 +343,7 @@ The logging system respects the following environment variables:
 
 ## Conclusion
 
-AndyCoin Bot is now fully containerized and can be deployed in various environments:
+AndyCoin Bot is fully containerized and can be deployed in various environments:
 
 - **Docker/Docker Compose**: For simple, local deployments
 - **Kubernetes**: For scalable, orchestrated deployments
