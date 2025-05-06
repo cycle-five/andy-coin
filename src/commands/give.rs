@@ -1,7 +1,7 @@
 use crate::{Context, Data, Error, logging};
-use poise::serenity_prelude as serenity;
+use poise::serenity_prelude::{self as serenity, UserId};
 
-// Core business logic for giving coins
+/// Core business logic for giving coins
 pub fn give_coins(
     data: &Data,
     guild_id: serenity::GuildId,
@@ -30,7 +30,7 @@ pub fn give_coins(
         previous_balance,
         new_balance,
         "give_command",
-        initiator_id.map(|id| id.get()),
+        initiator_id.map(UserId::get),
     );
 
     new_balance
@@ -44,23 +44,21 @@ pub async fn give(
     #[description = "User to give the AndyCoins to"] user: serenity::User,
 ) -> Result<(), Error> {
     // Log command execution
-    let args = format!("amount: {}, user: {}", amount, user.tag());
-    let guild_id = match ctx.guild_id() {
-        Some(id) => id,
-        None => {
-            ctx.say("This command can only be used in a server!")
-                .await?;
-            return Ok(());
-        }
+    let args = format!("amount: {amount}, user: {}", user.tag());
+    let guild_id = if let Some(id) = ctx.guild_id() {
+        id
+    } else {
+        ctx.say("This command can only be used in a server!")
+            .await?;
+        return Ok(());
     };
 
     // Get the member who is giving coins
-    let member = match ctx.author_member().await {
-        Some(member) => member,
-        None => {
-            ctx.say("Failed to get your member information.").await?;
-            return Ok(());
-        }
+    let member = if let Some(member) = ctx.author_member().await {
+        member
+    } else {
+        ctx.say("Failed to get your member information.").await?;
+        return Ok(());
     };
 
     // Check if the user has permission to give coins
@@ -76,10 +74,8 @@ pub async fn give(
     ctx.data().save().await?;
 
     let response = format!(
-        "Gave {} AndyCoins to {}. Their new balance in this server is {} AndyCoins.",
-        amount,
+        "Gave {amount} AndyCoins to {}. Their new balance in this server is {new_balance} AndyCoins.",
         user.tag(),
-        new_balance
     );
     ctx.say(response).await?;
 

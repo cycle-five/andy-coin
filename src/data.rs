@@ -1,12 +1,14 @@
-use chrono;
-use poise::serenity_prelude as serenity;
+use poise::serenity_prelude::{self as serenity, RoleId};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::{
+    ops::{Deref, DerefMut},
+    path::Path,
+};
 
 use crate::DATA_FILE;
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct UserBalance {
     pub guild_id: u64,
     pub user_id: u64,
@@ -32,7 +34,7 @@ impl Default for VoteConfig {
     }
 }
 
-#[derive(Default, Clone, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct VoteStatus {
     pub active: bool,
     pub start_time: Option<chrono::DateTime<chrono::Utc>>,
@@ -43,7 +45,7 @@ pub struct VoteStatus {
     pub last_vote_time: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct GuildConfig {
     pub guild_id: u64,
     pub giver_role_id: Option<u64>,
@@ -53,8 +55,63 @@ pub struct GuildConfig {
     pub vote_status: VoteStatus,
 }
 
-/// Main centrailized data structure for the bot. Should it use the InnerData idiom?
-pub struct Data {
+#[derive(Default)]
+pub struct Data(pub DataInner);
+
+impl Deref for Data {
+    type Target = DataInner;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Data {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl Data {
+    #[must_use]
+    pub fn new() -> Self {
+        Self(DataInner::new())
+    }
+
+    /// Parse YAML string into user balances and guild configs
+    /// # Errors
+    /// Returns an error if the YAML string is invalid
+    pub fn parse_yaml(
+        yaml_str: &str,
+    ) -> Result<(Vec<UserBalance>, Vec<GuildConfig>), serde_yaml::Error> {
+        DataInner::parse_yaml(yaml_str)
+    }
+
+    pub fn import_data(&self, balances: Vec<UserBalance>, configs: Vec<GuildConfig>) {
+        self.0.import_data(balances, configs);
+    }
+
+    pub async fn load() -> Self {
+        Data(DataInner::load().await)
+    }
+
+    pub fn export_data(&self) -> (Vec<UserBalance>, Vec<GuildConfig>) {
+        self.0.export_data()
+    }
+
+    /// Save data to YAML file
+    /// # Errors
+    /// Returns an error if the file cannot be written
+    pub fn to_yaml(
+        balances: &[UserBalance],
+        configs: &[GuildConfig],
+    ) -> Result<String, serde_yaml::Error> {
+        DataInner::to_yaml(balances, configs)
+    }
+}
+
+/// Main centrailized data structure for the bot. Should it use the `InnerData` idiom?
+pub struct DataInner {
     // Map of guild_id -> (user_id -> balance)
     pub guild_balances:
         dashmap::DashMap<serenity::GuildId, dashmap::DashMap<serenity::UserId, u32>>,
@@ -64,14 +121,14 @@ pub struct Data {
     pub cache: serenity::Cache,
 }
 
-impl Default for Data {
+impl Default for DataInner {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Data {
-    // Create a new Data instance
+impl DataInner {
+    /// Create a new Data instance
     pub fn new() -> Self {
         Self {
             guild_balances: dashmap::DashMap::new(),
@@ -80,7 +137,7 @@ impl Data {
         }
     }
 
-    // Parse YAML string into user balances and guild configs
+    /// Parse YAML string into user balances and guild configs
     pub fn parse_yaml(
         yaml_str: &str,
     ) -> Result<(Vec<UserBalance>, Vec<GuildConfig>), serde_yaml::Error> {
@@ -103,7 +160,7 @@ impl Data {
         Ok((balances, configs))
     }
 
-    // Import user balances and guild configs into the data structure
+    /// Import user balances and guild configs into the data structure
     pub fn import_data(&self, balances: Vec<UserBalance>, configs: Vec<GuildConfig>) {
         for user_balance in balances {
             let guild_id = serenity::GuildId::new(user_balance.guild_id);
@@ -139,7 +196,7 @@ impl Data {
         );
     }
 
-    // Load data from YAML file
+    /// Load data from YAML file
     pub async fn load() -> Self {
         let data = Self::new();
 
@@ -169,14 +226,14 @@ impl Data {
         data
     }
 
-    // Export balances and configs to a serializable format
+    /// Export balances and configs to a serializable format
     pub fn export_data(&self) -> (Vec<UserBalance>, Vec<GuildConfig>) {
         let mut balances = Vec::new();
 
-        for guild_entry in self.guild_balances.iter() {
+        for guild_entry in &self.guild_balances {
             let guild_id = guild_entry.key().get();
 
-            for user_entry in guild_entry.value().iter() {
+            for user_entry in guild_entry.value() {
                 balances.push(UserBalance {
                     guild_id,
                     user_id: user_entry.key().get(),
@@ -187,7 +244,7 @@ impl Data {
 
         let mut configs = Vec::new();
 
-        for config_entry in self.guild_configs.iter() {
+        for config_entry in &self.guild_configs {
             let guild_id = config_entry.key().get();
             let config = config_entry.value();
 
@@ -202,7 +259,7 @@ impl Data {
         (balances, configs)
     }
 
-    // Convert data to YAML string
+    /// Convert data to YAML string
     pub fn to_yaml(
         balances: &[UserBalance],
         configs: &[GuildConfig],
@@ -222,7 +279,7 @@ impl Data {
         serde_yaml::to_string(&serde_yaml::Value::Mapping(data))
     }
 
-    // Save data to YAML file
+    /// Save data to YAML file
     pub async fn save(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let (balances, configs) = self.export_data();
         let yaml_str = Self::to_yaml(&balances, &configs)?;
@@ -238,7 +295,43 @@ impl Data {
         Ok(())
     }
 
-    // Get a user's balance in a specific guild
+    /// Expire votes that have ended
+    pub fn expire_votes(&self) -> Vec<serenity::GuildId> {
+        let mut expired_votes = Vec::new();
+        for guild_entry in &self.guild_configs {
+            let guild_id = *guild_entry.key();
+            let config = guild_entry.value();
+
+            if config.vote_status.active {
+                // Check if the vote has expired
+                let now = chrono::Utc::now();
+                if let Some(end_time) = config.vote_status.end_time {
+                    if now > end_time {
+                        // Auto-end the vote
+                        self.end_vote(guild_id).unwrap_or_else(|_| {
+                            tracing::error!("Failed to end vote for guild {}", guild_id);
+                            false
+                        });
+                        expired_votes.push(guild_id);
+                    }
+                }
+            }
+        }
+        expired_votes
+    }
+
+    /// Get all guild IDs
+    pub fn get_guild_ids(&self) -> Vec<serenity::GuildId> {
+        self.guild_configs
+            .iter()
+            .map(|entry| {
+                let guild_id = *entry.key();
+                guild_id
+            })
+            .collect::<Vec<_>>()
+    }
+
+    /// Get a user's balance in a specific guild
     pub fn get_guild_balance(&self, guild_id: serenity::GuildId, user_id: serenity::UserId) -> u32 {
         self.guild_balances
             .get(&guild_id)
@@ -246,7 +339,7 @@ impl Data {
             .unwrap_or(0)
     }
 
-    // Get a user's total balance across all guilds
+    /// Get a user's total balance across all guilds
     pub fn get_total_balance(&self, user_id: serenity::UserId) -> u32 {
         self.guild_balances
             .iter()
@@ -254,7 +347,7 @@ impl Data {
             .sum()
     }
 
-    // Add coins to a user's balance in a specific guild
+    /// Add coins to a user's balance in a specific guild
     pub fn add_coins(
         &self,
         guild_id: serenity::GuildId,
@@ -289,7 +382,7 @@ impl Data {
         new_balance
     }
 
-    // Remove coins from a user's balance in a specific guild
+    /// Remove coins from a user's balance in a specific guild
     pub fn remove_coins(
         &self,
         guild_id: serenity::GuildId,
@@ -332,7 +425,7 @@ impl Data {
         new_balance_value
     }
 
-    // Get top users by balance in a specific guild
+    /// Get top users by balance in a specific guild
     pub fn get_guild_top_users(
         &self,
         guild_id: serenity::GuildId,
@@ -353,13 +446,13 @@ impl Data {
         }
     }
 
-    // Get top users by total balance across all guilds
+    /// Get top users by total balance across all guilds
     pub fn get_global_top_users(&self, limit: usize) -> Vec<(serenity::UserId, u32)> {
         // Collect all user balances across all guilds
         let user_totals: dashmap::DashMap<serenity::UserId, u32> = dashmap::DashMap::new();
 
-        for guild_entry in self.guild_balances.iter() {
-            for user_entry in guild_entry.value().iter() {
+        for guild_entry in &self.guild_balances {
+            for user_entry in guild_entry.value() {
                 user_totals
                     .entry(*user_entry.key())
                     .and_modify(|bal| *bal += *user_entry.value())
@@ -379,9 +472,9 @@ impl Data {
         users
     }
 
-    // Set the giver role for a guild
+    /// Set the giver role for a guild
     pub fn set_giver_role(&self, guild_id: serenity::GuildId, role_id: Option<serenity::RoleId>) {
-        let role_id_u64 = role_id.map(|r| r.get());
+        let role_id_u64 = role_id.map(RoleId::get);
 
         self.guild_configs
             .entry(guild_id)
@@ -394,14 +487,14 @@ impl Data {
             });
     }
 
-    // Get the giver role for a guild
+    /// Get the giver role for a guild
     pub fn get_giver_role(&self, guild_id: serenity::GuildId) -> Option<serenity::RoleId> {
         self.guild_configs
             .get(&guild_id)
             .and_then(|config| config.giver_role_id.map(serenity::RoleId::new))
     }
 
-    // Check if a user has the giver role
+    /// Check if a user has the giver role
     pub fn has_giver_role(&self, guild_id: serenity::GuildId, member: &serenity::Member) -> bool {
         // Server owner always has permission
         // Get guild owner ID.
@@ -424,19 +517,19 @@ impl Data {
         false
     }
 
-    // Flip a coin and return the result
-    pub fn flip_coin(&self) -> bool {
+    /// Flip a coin and return the result
+    pub fn flip_coin() -> bool {
         let mut rng = rand::rng();
         rng.random_bool(0.5)
     }
 
-    // Reset all data
+    /// Reset all data
     pub fn reset(&self) {
         self.guild_balances.clear();
         self.guild_configs.clear();
     }
 
-    // Get vote config for a guild
+    /// Get vote config for a guild
     pub fn get_vote_config(&self, guild_id: serenity::GuildId) -> VoteConfig {
         self.guild_configs
             .get(&guild_id)
@@ -444,7 +537,7 @@ impl Data {
             .unwrap_or_default()
     }
 
-    // Set vote config for a guild
+    /// Set vote config for a guild
     pub fn set_vote_config(&self, guild_id: serenity::GuildId, vote_config: &VoteConfig) {
         let my_vote_config = vote_config.clone();
         self.guild_configs
@@ -458,7 +551,7 @@ impl Data {
             });
     }
 
-    // Get vote status for a guild
+    /// Get vote status for a guild
     pub fn get_vote_status(&self, guild_id: serenity::GuildId) -> VoteStatus {
         self.guild_configs
             .get(&guild_id)
@@ -466,25 +559,24 @@ impl Data {
             .unwrap_or_default()
     }
 
-    // Start a vote in a guild
+    /// Start a vote in a guild
     pub fn start_vote(
         &self,
         guild_id: serenity::GuildId,
         initiator_id: serenity::UserId,
     ) -> Result<chrono::DateTime<chrono::Utc>, &'static str> {
-        let mut config_ref = match self.guild_configs.get_mut(&guild_id) {
-            Some(config) => config,
-            None => {
-                // Create a new config if it doesn't exist
-                let config = GuildConfig {
-                    guild_id: guild_id.get(),
-                    giver_role_id: None,
-                    vote_config: VoteConfig::default(),
-                    vote_status: VoteStatus::default(),
-                };
-                self.guild_configs.insert(guild_id, config);
-                self.guild_configs.get_mut(&guild_id).unwrap()
-            }
+        let mut config_ref = if let Some(config) = self.guild_configs.get_mut(&guild_id) {
+            config
+        } else {
+            // Create a new config if it doesn't exist
+            let config = GuildConfig {
+                guild_id: guild_id.get(),
+                giver_role_id: None,
+                vote_config: VoteConfig::default(),
+                vote_status: VoteStatus::default(),
+            };
+            self.guild_configs.insert(guild_id, config);
+            self.guild_configs.get_mut(&guild_id).unwrap()
         };
 
         // Check if a vote is already active
@@ -495,7 +587,7 @@ impl Data {
         // Check if a vote was recently completed (cooldown period)
         if let Some(last_vote_time) = config_ref.vote_status.last_vote_time {
             let cooldown_duration =
-                chrono::Duration::hours(config_ref.vote_config.cooldown_hours as i64);
+                chrono::Duration::hours(i64::from(config_ref.vote_config.cooldown_hours));
             let now = chrono::Utc::now();
 
             if now < last_vote_time + cooldown_duration {
@@ -507,7 +599,8 @@ impl Data {
 
         // Start the vote
         let now = chrono::Utc::now();
-        let duration = chrono::Duration::minutes(config_ref.vote_config.duration_minutes as i64);
+        let duration =
+            chrono::Duration::minutes(i64::from(config_ref.vote_config.duration_minutes));
         let end_time = now + duration;
 
         config_ref.vote_status = VoteStatus {
@@ -523,7 +616,7 @@ impl Data {
         Ok(end_time)
     }
 
-    // Cast a vote
+    /// Cast a vote
     pub fn cast_vote(
         &self,
         guild_id: serenity::GuildId,
@@ -572,7 +665,7 @@ impl Data {
         Ok(())
     }
 
-    // End a vote and process the results
+    /// End a vote and process the results
     pub fn end_vote(&self, guild_id: serenity::GuildId) -> Result<bool, &'static str> {
         let mut config_ref = match self.guild_configs.get_mut(&guild_id) {
             Some(config) => config,
@@ -602,7 +695,7 @@ impl Data {
         let yes_percentage = (yes_votes as f64 / total_votes as f64) * 100.0;
 
         // Check if the majority threshold is met
-        let vote_passed = yes_percentage >= config_ref.vote_config.majority_percentage as f64;
+        let vote_passed = yes_percentage >= f64::from(config_ref.vote_config.majority_percentage);
 
         // If the vote passed, reset all balances in the guild
         if vote_passed {
@@ -612,18 +705,18 @@ impl Data {
                     "Reset all balances in guild {} due to successful vote",
                     guild_id
                 );
+                // self.save().await.unwrap_or_else(|_| {
+                //     tracing::error!("Failed to save data after vote");
+                // });
             }
         }
 
         Ok(vote_passed)
     }
 
-    // Check if a vote has expired and end it if necessary
+    /// Check if a vote has expired and end it if necessary
     pub fn check_vote_expiry(&self, guild_id: serenity::GuildId) -> Option<bool> {
-        let config = match self.guild_configs.get(&guild_id) {
-            Some(config) => config,
-            None => return None,
-        };
+        let config = self.guild_configs.get(&guild_id)?;
 
         // Check if a vote is active
         if !config.vote_status.active {
@@ -650,17 +743,17 @@ impl Data {
 mod tests {
     use super::*;
 
-    // Helper function to create a test user ID
+    /// Helper function to create a test user ID
     fn test_user_id(id: u64) -> serenity::UserId {
         serenity::UserId::new(id)
     }
 
-    // Helper function to create a test guild ID
+    /// Helper function to create a test guild ID
     fn test_guild_id(id: u64) -> serenity::GuildId {
         serenity::GuildId::new(id)
     }
 
-    // Helper function to create a test role ID
+    /// Helper function to create a test role ID
     fn test_role_id(id: u64) -> serenity::RoleId {
         serenity::RoleId::new(id)
     }
@@ -859,14 +952,12 @@ mod tests {
 
     #[test]
     fn test_flip_coin() {
-        let data = Data::new();
-
         // Flip the coin multiple times to ensure it returns both true and false
         let mut heads_count = 0;
         let mut tails_count = 0;
 
         for _ in 0..100 {
-            if data.flip_coin() {
+            if DataInner::flip_coin() {
                 heads_count += 1;
             } else {
                 tails_count += 1;

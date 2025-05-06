@@ -1,5 +1,5 @@
 use crate::{Context, Data, Error, logging};
-use poise::serenity_prelude as serenity;
+use poise::serenity_prelude::{self as serenity, GuildId};
 
 // Core business logic for getting leaderboard
 pub fn get_leaderboard(
@@ -27,7 +27,7 @@ pub async fn leaderboard(
     // Format arguments for logging
     let limit_arg = limit.unwrap_or(10).to_string();
     let global_arg = global.unwrap_or(false).to_string();
-    let args = format!("limit: {}, global: {}", limit_arg, global_arg);
+    let args = format!("limit: {limit_arg}, global: {global_arg}");
     let limit = limit.unwrap_or(10).min(25); // Cap at 25 to avoid too long messages
     let is_global = global.unwrap_or(false);
     let guild_id = ctx.guild_id();
@@ -40,20 +40,17 @@ pub async fn leaderboard(
         return Ok(());
     }
 
-    let mut response = format!("# {} AndyCoin Leaderboard\n", scope);
+    let mut response = format!("# {scope} AndyCoin Leaderboard\n");
 
     for (idx, (user_id, balance)) in top_users.iter().enumerate() {
         let rank = idx + 1;
         // Try to fetch the user info
         let username = match ctx.http().get_user(*user_id).await {
             Ok(user) => user.tag(),
-            Err(_) => format!("User {}", user_id),
+            Err(_) => format!("User {user_id}"),
         };
 
-        response.push_str(&format!(
-            "{}. **{}**: {} AndyCoins\n",
-            rank, username, balance
-        ));
+        response.push_str(&format!("{rank}. **{username}**: {balance} AndyCoins\n"));
     }
 
     ctx.say(response).await?;
@@ -61,7 +58,7 @@ pub async fn leaderboard(
     // Log successful command execution
     logging::log_command(
         "leaderboard",
-        ctx.guild_id().map(|id| id.get()),
+        ctx.guild_id().map(GuildId::get),
         ctx.author().id.get(),
         &args,
         true,

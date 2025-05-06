@@ -1,5 +1,5 @@
-use crate::{Context, Error, logging};
-use poise::serenity_prelude as serenity;
+use crate::{Context, Error, data::DataInner, logging};
+use poise::serenity_prelude::{self as serenity, GuildId};
 
 /// Set the giver role for a server
 #[poise::command(slash_command, guild_only)]
@@ -7,13 +7,12 @@ pub async fn role(
     ctx: Context<'_>,
     #[description = "Role that can give AndyCoins"] role: Option<serenity::Role>,
 ) -> Result<(), Error> {
-    let guild_id = match ctx.guild_id() {
-        Some(id) => id,
-        None => {
-            ctx.say("This command can only be used in a server!")
-                .await?;
-            return Ok(());
-        }
+    let guild_id = if let Some(id) = ctx.guild_id() {
+        id
+    } else {
+        ctx.say("This command can only be used in a server!")
+            .await?;
+        return Ok(());
     };
 
     // Check if the command user is the server owner
@@ -38,8 +37,7 @@ pub async fn role(
         role_name_for_log = role_name.clone();
         ctx.data().set_giver_role(guild_id, Some(r.id));
         response = format!(
-            "Set {} as the giver role. Users with this role can now give AndyCoins.",
-            role_name
+            "Set {role_name} as the giver role. Users with this role can now give AndyCoins."
         );
     } else {
         // Clear the giver role
@@ -59,7 +57,7 @@ pub async fn role(
         "role",
         Some(guild_id.get()),
         ctx.author().id.get(),
-        &format!("role: {}", role_name_for_log),
+        &format!("role: {role_name_for_log}"),
         true,
     );
 
@@ -73,20 +71,20 @@ pub async fn flip(
     #[description = "guess if you want"] guess: Option<String>,
     #[description = "bet you won't figure this out"] bet: Option<bool>,
 ) -> Result<(), Error> {
-    let result = ctx.data().flip_coin();
+    let result = DataInner::flip_coin();
     let result_str = if result { "heads" } else { "tails" };
 
     // If no guess is provided, just show the result
     if guess.is_none() && bet.is_none() {
-        ctx.say(format!("The coin landed on **{}**!", result_str))
+        ctx.say(format!("The coin landed on **{result_str}**!"))
             .await?;
 
         // Log simple flip
         logging::log_command(
             "flip",
-            ctx.guild_id().map(|id| id.get()),
+            ctx.guild_id().map(GuildId::get),
             ctx.author().id.get(),
-            &format!("result: {}", result_str),
+            &format!("result: {result_str}"),
             true,
         );
 
@@ -109,13 +107,12 @@ pub async fn flip(
 
         // If bet flag is provided, this is a betting game
         if bet.unwrap_or(false) {
-            let guild_id = match ctx.guild_id() {
-                Some(id) => id,
-                None => {
-                    ctx.say("The betting game can only be played in a server!")
-                        .await?;
-                    return Ok(());
-                }
+            let guild_id = if let Some(id) = ctx.guild_id() {
+                id
+            } else {
+                ctx.say("The betting game can only be played in a server!")
+                    .await?;
+                return Ok(());
             };
 
             let user_id = ctx.author().id;
@@ -130,13 +127,12 @@ pub async fn flip(
             if guess_result == result {
                 // Win: add a coin
                 let new_balance = ctx.data().add_coins(guild_id, user_id, 1);
-                ctx.say(format!("The coin landed on **{}**! You guessed correctly and won 1 AndyCoin! Your new balance is {} AndyCoins.", 
-                               result_str, new_balance)).await?;
+                ctx.say(format!("The coin landed on **{result_str}**! You guessed correctly and won 1 AndyCoin! Your new balance is {new_balance} AndyCoins.", 
+                               )).await?;
             } else {
                 // Lose: remove a coin
                 let new_balance = ctx.data().remove_coins(guild_id, user_id, 1);
-                ctx.say(format!("The coin landed on **{}**! You guessed wrong and lost 1 AndyCoin. Your new balance is {} AndyCoins.", 
-                               result_str, new_balance)).await?;
+                ctx.say(format!("The coin landed on **{result_str}**! You guessed wrong and lost 1 AndyCoin. Your new balance is {new_balance} AndyCoins.")).await?;
             }
 
             // Save the updated balances
@@ -164,14 +160,12 @@ pub async fn flip(
             // Regular guess without betting
             if guess_result == result {
                 ctx.say(format!(
-                    "The coin landed on **{}**! You guessed correctly!",
-                    result_str
+                    "The coin landed on **{result_str}**! You guessed correctly!",
                 ))
                 .await?;
             } else {
                 ctx.say(format!(
-                    "The coin landed on **{}**! You guessed wrong.",
-                    result_str
+                    "The coin landed on **{result_str}**! You guessed wrong.",
                 ))
                 .await?;
             }
@@ -184,7 +178,7 @@ pub async fn flip(
             };
             logging::log_command(
                 "flip_guess",
-                ctx.guild_id().map(|id| id.get()),
+                ctx.guild_id().map(GuildId::get),
                 ctx.author().id.get(),
                 &format!(
                     "guess: {}, result: {}, outcome: {}",
@@ -210,7 +204,7 @@ pub async fn config(ctx: Context<'_>) -> Result<(), Error> {
     // Log command execution
     logging::log_command(
         "config",
-        ctx.guild_id().map(|id| id.get()),
+        ctx.guild_id().map(GuildId::get),
         ctx.author().id.get(),
         "help message displayed",
         true,
@@ -218,27 +212,3 @@ pub async fn config(ctx: Context<'_>) -> Result<(), Error> {
 
     Ok(())
 }
-
-// /// Reset all AndyCoin data (server owner only)
-// #[poise::command(slash_command, prefix_command, guild_only)]
-// pub async fn reset(
-//     ctx: Context<'_>,
-// ) -> Result<(), Error> {
-//     // Check if the command user is the server owner
-//     let is_owner = if let Some(guild) = ctx.guild() {
-//         guild.owner_id == ctx.author().id
-//     } else {
-//         false
-//     };
-
-//     if !is_owner {
-//         ctx.say("Only the server owner can reset AndyCoin data!").await?;
-//         return Ok(());
-//     }
-
-//     ctx.data().reset();
-//     ctx.data().save().await?;
-//     ctx.say("Reset all AndyCoin data.").await?;
-
-//     Ok(())
-// }

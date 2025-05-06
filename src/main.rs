@@ -1,3 +1,4 @@
+use data::DataInner;
 use poise::serenity_prelude as serenity;
 
 mod commands;
@@ -18,6 +19,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let token = std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
     let intents = serenity::GatewayIntents::non_privileged();
+
+    let data_inner = DataInner::load().await;
+    data_inner.expire_votes();
+    let data = Data(data_inner);
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
@@ -42,7 +47,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 );
 
                 // Load data from file
-                let data = Data::load().await;
                 Ok(data)
             })
         })

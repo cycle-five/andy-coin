@@ -24,9 +24,10 @@ pub async fn vote(
     match decision {
         VoteDecision::Yes => {
             match ctx.data().cast_vote(guild_id, user_id, true) {
-                Ok(_) => {
-                    ctx.say("You have voted YES on the current reset proposal.").await?;
-                    
+                Ok(()) => {
+                    ctx.say("You have voted YES on the current reset proposal.")
+                        .await?;
+
                     // Log successful vote
                     logging::log_command(
                         "vote_cast",
@@ -43,9 +44,10 @@ pub async fn vote(
         }
         VoteDecision::No => {
             match ctx.data().cast_vote(guild_id, user_id, false) {
-                Ok(_) => {
-                    ctx.say("You have voted NO on the current reset proposal.").await?;
-                    
+                Ok(()) => {
+                    ctx.say("You have voted NO on the current reset proposal.")
+                        .await?;
+
                     // Log successful vote
                     logging::log_command(
                         "vote_cast",
@@ -96,7 +98,7 @@ pub async fn vote(
                         "vote_start",
                         Some(guild_id.get()),
                         ctx.author().id.get(),
-                        &format!("end_time: {}", end_time_str),
+                        &format!("end_time: {end_time_str}"),
                         true,
                     );
                 }
@@ -125,24 +127,33 @@ pub async fn vote_admin(_: Context<'_>) -> Result<(), Error> {
 #[poise::command(slash_command, guild_only)]
 pub async fn status(ctx: Context<'_>) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap();
-    let vote_status = ctx.data().get_vote_status(guild_id);
     let vote_config = ctx.data().get_vote_config(guild_id);
+
+    // Check if the vote has expired
+    if let Some(vote_passed) = ctx.data().check_vote_expiry(guild_id) {
+        let result_str = if vote_passed {
+            "The vote has ended and PASSED. All AndyCoins have been reset to 0."
+        } else {
+            "The vote has ended and FAILED. Not enough votes or majority not reached."
+        };
+        ctx.say(result_str).await?;
+        return Ok(());
+    }
+
+    let vote_status = ctx.data().get_vote_status(guild_id);
 
     // Check if a vote is active
     if !vote_status.active {
         // Check if there's a cooldown
         if let Some(last_vote_time) = vote_status.last_vote_time {
-            let cooldown_duration = chrono::Duration::hours(vote_config.cooldown_hours as i64);
+            let cooldown_duration = chrono::Duration::hours(i64::from(vote_config.cooldown_hours));
             let now = chrono::Utc::now();
 
             if now < last_vote_time + cooldown_duration {
                 let cooldown_end = last_vote_time + cooldown_duration;
                 let cooldown_end_str = cooldown_end.format("%H:%M:%S UTC on %Y-%m-%d");
 
-                ctx.say(format!(
-                    "No active vote. A vote was recently completed. The next vote can be started at {}.",
-                    cooldown_end_str
-                )).await?;
+                ctx.say(format!("No active vote. A vote was recently completed. The next vote can be started at {cooldown_end_str}.")).await?;
                 return Ok(());
             }
         }
@@ -171,7 +182,7 @@ pub async fn status(ctx: Context<'_>) -> Result<(), Error> {
 
     // Format initiator
     let initiator_str = if let Some(initiator_id) = vote_status.initiator_id {
-        format!("<@{}>", initiator_id)
+        format!("<@{initiator_id}>")
     } else {
         "Unknown".to_string()
     };
@@ -179,17 +190,15 @@ pub async fn status(ctx: Context<'_>) -> Result<(), Error> {
     // Build response
     let mut response = String::new();
     writeln!(&mut response, "🗳️ **AndyCoin Reset Vote Status**")?;
-    writeln!(&mut response, "Initiator: {}", initiator_str)?;
-    writeln!(&mut response, "End Time: {}", end_time_str)?;
+    writeln!(&mut response, "Initiator: {initiator_str}")?;
+    writeln!(&mut response, "End Time: {end_time_str}")?;
     writeln!(
         &mut response,
-        "Votes: {} YES / {} NO (Total: {})",
-        yes_votes, no_votes, total_votes
+        "Votes: {yes_votes} YES / {no_votes} NO (Total: {total_votes})",
     )?;
     writeln!(
         &mut response,
-        "Current YES Percentage: {:.1}%",
-        yes_percentage
+        "Current YES Percentage: {yes_percentage:.1}%",
     )?;
     writeln!(
         &mut response,
@@ -199,7 +208,7 @@ pub async fn status(ctx: Context<'_>) -> Result<(), Error> {
 
     // Check if the vote would pass with current numbers
     if total_votes >= vote_config.min_votes as usize {
-        if yes_percentage >= vote_config.majority_percentage as f64 {
+        if yes_percentage >= f64::from(vote_config.majority_percentage) {
             writeln!(&mut response, "Status: Would PASS with current votes")?;
         } else {
             writeln!(&mut response, "Status: Would FAIL with current votes")?;
@@ -215,10 +224,7 @@ pub async fn status(ctx: Context<'_>) -> Result<(), Error> {
         "vote_status",
         Some(guild_id.get()),
         ctx.author().id.get(),
-        &format!(
-            "yes: {}, no: {}, total: {}",
-            yes_votes, no_votes, total_votes
-        ),
+        &format!("yes: {yes_votes}, no: {no_votes}, total: {total_votes}"),
         true,
     );
     Ok(())
@@ -290,12 +296,11 @@ pub async fn config(
     writeln!(&mut response, "✅ **Vote Settings Updated**")?;
     writeln!(
         &mut response,
-        "Cooldown between votes: {} hours",
-        cooldown_hours
+        "Cooldown between votes: {cooldown_hours} hours",
     )?;
-    writeln!(&mut response, "Vote duration: {} minutes", duration_minutes)?;
-    writeln!(&mut response, "Minimum votes required: {}", min_votes)?;
-    writeln!(&mut response, "Majority percentage required: {}%", majority)?;
+    writeln!(&mut response, "Vote duration: {duration_minutes} minutes")?;
+    writeln!(&mut response, "Minimum votes required: {min_votes}")?;
+    writeln!(&mut response, "Majority percentage required: {majority}%")?;
 
     ctx.say(response).await?;
 
@@ -305,15 +310,14 @@ pub async fn config(
         Some(guild_id.get()),
         ctx.author().id.get(),
         &format!(
-            "cooldown: {}, duration: {}, min_votes: {}, majority: {}",
-            cooldown_hours, duration_minutes, min_votes, majority
+            "cooldown: {cooldown_hours}, duration: {duration_minutes}, min_votes: {min_votes}, majority: {majority}"
         ),
         true,
     );
 
     // Save data to file
     if let Err(e) = ctx.data().save().await {
-        ctx.say(format!("Warning: Failed to save settings: {}", e))
+        ctx.say(format!("Warning: Failed to save settings: {e}"))
             .await?;
     }
 

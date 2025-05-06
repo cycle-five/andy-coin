@@ -1,4 +1,4 @@
-//! Audit tool for AndyCoin bot
+//! Audit tool for `AndyCoin` bot
 //!
 //! This tool helps analyze logs and track balance changes.
 
@@ -68,7 +68,7 @@ fn main() -> io::Result<()> {
             print_usage();
         }
         _ => {
-            println!("Unknown command: {}", command);
+            println!("Unknown command: {command}");
             print_usage();
         }
     }
@@ -86,7 +86,7 @@ fn print_usage() {
 }
 
 fn list_user_commands(user_id: &str) -> io::Result<()> {
-    println!("Commands executed by user {}:", user_id);
+    println!("Commands executed by user {user_id}:");
     println!(
         "{:<27} {:<20} {:<15} {:<40} {:<10}",
         "Timestamp", "Command", "Guild", "Arguments", "Result"
@@ -126,14 +126,14 @@ fn list_user_commands(user_id: &str) -> io::Result<()> {
     }
 
     if !found {
-        println!("No commands found for user {}", user_id);
+        println!("No commands found for user {user_id}");
     }
 
     Ok(())
 }
 
 fn list_user_balances(user_id: &str) -> io::Result<()> {
-    println!("Balance changes for user {}:", user_id);
+    println!("Balance changes for user {user_id}:");
     println!(
         "{:<27} {:<20} {:<15} {:<15} {:<10} {:<20} {:<15}",
         "Timestamp", "Guild", "Previous", "New", "Change", "Reason", "Initiator"
@@ -177,12 +177,14 @@ fn list_user_balances(user_id: &str) -> io::Result<()> {
     }
 
     if !found {
-        println!("No balance changes found for user {}", user_id);
+        println!("No balance changes found for user {user_id}");
     }
 
     Ok(())
 }
 
+/// Print a summary of balance changes grouped by guild and user
+/// TODO: Have this be a summary of all balance changes.
 fn balance_summary() -> io::Result<()> {
     println!("Balance Change Summary:");
 
@@ -211,7 +213,7 @@ fn balance_summary() -> io::Result<()> {
 
     // Print guild summaries
     for (guild_id, user_map) in guild_user_changes {
-        println!("\nGuild: {}", guild_id);
+        println!("\nGuild: {guild_id}");
         println!("{:<20} {:<15}", "User ID", "Net Change");
         println!("{}", "-".repeat(35));
 
@@ -219,7 +221,7 @@ fn balance_summary() -> io::Result<()> {
         users.sort_by(|a, b| b.1.cmp(a.1)); // Sort by change (descending)
 
         for (user_id, change) in users {
-            println!("{:<20} {:<+15}", user_id, change);
+            println!("{user_id:<20} {change:<+15}");
         }
     }
 
@@ -232,7 +234,7 @@ fn balance_summary() -> io::Result<()> {
     users.sort_by(|a, b| b.1.cmp(a.1)); // Sort by change (descending)
 
     for (user_id, change) in users {
-        println!("{:<20} {:<+15}", user_id, change);
+        println!("{user_id:<20} {change:<+15}");
     }
 
     Ok(())
@@ -340,6 +342,7 @@ fn parse_balance_logs() -> io::Result<Vec<LogEntryType>> {
                 let reader = BufReader::new(file);
 
                 #[allow(clippy::manual_flatten)]
+                #[allow(clippy::cast_possible_truncation)]
                 for line in reader.lines() {
                     if let Ok(line_content) = line {
                         if let Ok(json) = serde_json::from_str::<Value>(&line_content) {
@@ -355,13 +358,17 @@ fn parse_balance_logs() -> io::Result<Vec<LogEntryType>> {
                                         Some(reason),
                                         Some(initiator),
                                     ) = (
-                                        fields.get("guild_id").and_then(|v| v.as_str()),
-                                        fields.get("user_id").and_then(|v| v.as_str()),
-                                        fields.get("previous_balance").and_then(|v| v.as_u64()),
-                                        fields.get("new_balance").and_then(|v| v.as_u64()),
-                                        fields.get("change").and_then(|v| v.as_i64()),
-                                        fields.get("reason").and_then(|v| v.as_str()),
-                                        fields.get("initiator").and_then(|v| v.as_str()),
+                                        fields.get("guild_id").and_then(serde_json::Value::as_str),
+                                        fields.get("user_id").and_then(serde_json::Value::as_str),
+                                        fields
+                                            .get("previous_balance")
+                                            .and_then(serde_json::Value::as_u64),
+                                        fields
+                                            .get("new_balance")
+                                            .and_then(serde_json::Value::as_u64),
+                                        fields.get("change").and_then(serde_json::Value::as_i64),
+                                        fields.get("reason").and_then(serde_json::Value::as_str),
+                                        fields.get("initiator").and_then(serde_json::Value::as_str),
                                     ) {
                                         entries.push(LogEntryType::Balance {
                                             timestamp: timestamp.to_string(),

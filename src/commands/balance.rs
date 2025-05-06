@@ -1,11 +1,11 @@
 use crate::{Context, Data, Error, logging};
-use poise::serenity_prelude as serenity;
+use poise::serenity_prelude::{self as serenity, GuildId, User};
 
 // Core business logic for checking balance
 pub fn get_balance(
     data: &Data,
     user_id: serenity::UserId,
-    opt_guild_id: Option<serenity::GuildId>,
+    opt_guild_id: Option<GuildId>,
     is_global: bool,
 ) -> u32 {
     if is_global {
@@ -27,9 +27,9 @@ pub async fn balance(
     #[description = "Show total balance across all servers (default: current server only)"] global: Option<bool>,
 ) -> Result<(), Error> {
     // Format arguments for logging
-    let user_arg = user.as_ref().map_or("self".to_string(), |u| u.tag());
+    let user_arg = user.as_ref().map_or("self".to_string(), User::tag);
     let global_arg = global.unwrap_or(false).to_string();
-    let args = format!("user: {}, global: {}", user_arg, global_arg);
+    let args = format!("user: {user_arg}, global: {global_arg}");
     let target_user = user.as_ref().unwrap_or_else(|| ctx.author());
     let is_global = global.unwrap_or(false);
     let guild_id = ctx.guild_id();
@@ -44,9 +44,9 @@ pub async fn balance(
     };
 
     let response = if target_user.id == ctx.author().id {
-        format!("You have {} AndyCoins {}.", balance, scope)
+        format!("You have {balance} AndyCoins {scope}.")
     } else {
-        format!("{} has {} AndyCoins {}.", target_user.tag(), balance, scope)
+        format!("{} has {balance} AndyCoins {scope}.", target_user.tag())
     };
 
     ctx.say(response).await?;
@@ -54,7 +54,7 @@ pub async fn balance(
     // Log successful command execution
     logging::log_command(
         "balance",
-        ctx.guild_id().map(|id| id.get()),
+        ctx.guild_id().map(GuildId::get),
         ctx.author().id.get(),
         &args,
         true,
